@@ -26,7 +26,9 @@ export function describeError(error: unknown): string {
     const label = depth === 0 ? "" : "caused by: ";
     const status = describeStatus(current);
     parts.push(`${label}${current.stack ?? `${current.name}: ${current.message}`}${status}`);
-    current = current.cause;
+    // `cause` olvasása lib-független módon: régebbi TS lib célok nem ismerik
+    // az Error.cause mezőt, de futásidőben minden támogatott böngésző adja.
+    current = (current as Error & { cause?: unknown }).cause;
   }
   return parts.join("\n").slice(0, DESCRIPTION_LENGTH_LIMIT);
 }
