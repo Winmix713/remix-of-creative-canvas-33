@@ -103,7 +103,12 @@ export function CloudTierTab({
           <button
             type="button"
             className="btn btn--outline btn--sm tap gap-1.5"
-            disabled={!cloud.configured || cloud.loadingRatings || cloud.health.degraded}
+            disabled={
+            !cloud.configured ||
+            cloud.loadingRatings ||
+            cloud.health.degraded ||
+            cloud.health.status === 'probing'
+            }
             onClick={() => void cloud.loadRatings(league)}>
             
             <RefreshCw
