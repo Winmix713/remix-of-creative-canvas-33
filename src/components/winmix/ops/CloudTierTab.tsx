@@ -69,6 +69,11 @@ export function CloudTierTab({
           <PanelTitle as="h3">
             {cloud.health.status === 'online' ?
             <Cloud className="h-3.5 w-3.5 text-signal" aria-hidden="true" /> :
+            cloud.health.status === 'probing' ?
+            <Cloud
+              className="h-3.5 w-3.5 animate-pulse text-muted-foreground"
+              aria-hidden="true" /> :
+
 
             <CloudOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
             }
@@ -77,6 +82,8 @@ export function CloudTierTab({
           <PanelSubtitle>
             {cloud.health.status === 'online' ?
             `elérhető · ${cloud.health.checkedAt ?? ''}` :
+            cloud.health.status === 'probing' ?
+            'kapcsolat ellenőrzése…' :
             cloud.health.status === 'unconfigured' ?
             'nincs konfigurálva (VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY)' :
             `helyi módra váltva — ${cloud.health.lastError ?? 'elérhetetlen'}`}
