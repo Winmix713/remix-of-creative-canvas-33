@@ -59,6 +59,13 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_juS6O5xPz0l61tz7c4nAyw_9cFO5bnx
 - A `.env` fájl elhagyása **nem** hiba: `utils/cloudConfig.ts` tartalmaz egy
   beépített publishable fallbacket, hogy preview/sandbox buildben is működjön.
   A feloldás sorrendje: `.env` → beépített fallback → `null` (unconfigured).
+- **A jelenlegi buildben a `null` ág nem érhető el.** A `FALLBACK_URL` és a
+  `FALLBACK_ANON_KEY` nem üres literál, ezért `readCloudEnv()` mindig ad
+  konfigurációt, és `isCloudTierConfigured()` mindig `true`. Az `unconfigured`
+  állapot csak akkor következhet be, ha valaki kiüríti vagy elrontja ezeket a
+  konstansokat (pl. stripped build). Az alábbi állapotgép tehát az `unconfigured`
+  ágat *lehetséges*, de a jelen konfiguráció mellett nem előforduló állapotként
+  írja le.
 
 ### 1.2 A kliensoldali réteg térképe
 
@@ -68,7 +75,8 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_juS6O5xPz0l61tz7c4nAyw_9cFO5bnx
 | `utils/supabaseTier.ts` | `restGet()`, `probeCloudTier()`, `fetchCloudTeamRatings()`, `cloudEndpointSummary()`, HTTP-hibák magyar fordítása |
 | `hooks/useCloudTier.ts` | Állapotgép: `health`, `configured`, `ratings`, `refresh()`, `retry()`, `loadRatings(league)`, sticky degradálás |
 | `contexts/CloudTierContext.tsx` | Provider — a `WinmixProvider` **testvére**, nem függősége |
-| `pages/PipelineOperationsDashboard.tsx` | „Felhő tier & keresztellenőrzés" fül: állapot, végpont, betöltés, diff-tábla |
+| `components/winmix/ops/CloudTierTab.tsx` | A fül tényleges implementációja: állapotfelirat, végpont, betöltés gomb, diff-tábla |
+| `pages/PipelineOperationsDashboard.tsx` | A „Felhő tier & keresztellenőrzés" fül beillesztése, `league` és `crossCheck` átadása |
 
 Nincs `@supabase/supabase-js` függőség: a tier nyers `fetch`-csel beszél a
 PostgREST-tel. Ez szándékos — nincs auth/realtime/storage felület, amin
@@ -82,7 +90,9 @@ unconfigured ──(kulcs megjelenik)──► probing ──► online ──�
       └──────────────── retry() ────────────────────┴──────────┘
 ```
 
-- `probing`: mount után azonnal, `probeCloudTier()` fut (4 s timeout).
+- `probing`: mount után azonnal, `probeCloudTier()` fut (4 s timeout). A UI ezt
+  külön jeleníti meg („kapcsolat ellenőrzése…", pulzáló felhő ikon), és amíg tart,
+  az „SQL értékelés betöltése" gomb le van tiltva.
 - `online`: a `view_team_ratings` (vagy fallbackként a REST gyökér) elérhető.
 - `degraded`: **sticky** a munkamenetre. A „Kapcsolat újrapróbálása" gomb
   (`retry()`) törli a sticky jelzőt, és újraszondáz — így kulcscsere után nem
