@@ -62,11 +62,10 @@ export function resolveCloudEnv(
   fallback: { url: string; anonKey: string } = { url: FALLBACK_URL, anonKey: FALLBACK_ANON_KEY }
 ): CloudEnv | null {
   const envUrl = (env['VITE_SUPABASE_URL'] ?? '').trim();
-  const envKey = (
-    env['VITE_SUPABASE_PUBLISHABLE_KEY'] ??
-    env['VITE_SUPABASE_ANON_KEY'] ??
-    ''
-  ).trim() || (env['VITE_SUPABASE_ANON_KEY'] ?? '').trim();
+  const envKey =
+    (env['VITE_SUPABASE_PUBLISHABLE_KEY'] ?? '').trim() ||
+    (env['VITE_SUPABASE_ANON_KEY'] ?? '').trim();
+
 
   if (isValidHttpUrl(envUrl) && isNonEmptyKey(envKey)) {
     return Object.freeze({
