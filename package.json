@@ -8,7 +8,9 @@
     "build": "npx vite build",
     "build:dev": "npx vite build --mode development",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "preview": "npx vite preview"
+    "preview": "npx vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",
