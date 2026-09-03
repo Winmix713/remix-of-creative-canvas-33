@@ -52,33 +52,52 @@ function isNonEmptyKey(value: string): boolean {
   return value.trim().length > 0;
 }
 
+/**
+ * Pure resolution over an arbitrary env bag — the single source of truth for
+ * the documented order, and the unit-testable seam (`import.meta.env` is
+ * frozen at build time, so it cannot be stubbed in tests).
+ */
+export function resolveCloudEnv(
+  env: Record<string, string | undefined>,
+  fallback: { url: string; anonKey: string } = { url: FALLBACK_URL, anonKey: FALLBACK_ANON_KEY }
+): CloudEnv | null {
+  const envUrl = (env['VITE_SUPABASE_URL'] ?? '').trim();
+  const envKey = (
+    env['VITE_SUPABASE_PUBLISHABLE_KEY'] ??
+    env['VITE_SUPABASE_ANON_KEY'] ??
+    ''
+  ).trim() || (env['VITE_SUPABASE_ANON_KEY'] ?? '').trim();
+
+  if (isValidHttpUrl(envUrl) && isNonEmptyKey(envKey)) {
+    return Object.freeze({
+      url: envUrl.replace(/\/+$/, ''),
+      anonKey: envKey,
+      source: 'env' as const
+    });
+  }
+
+  if (isValidHttpUrl(fallback.url) && isNonEmptyKey(fallback.anonKey)) {
+    return Object.freeze({
+      url: fallback.url.replace(/\/+$/, ''),
+      anonKey: fallback.anonKey,
+      source: 'fallback' as const
+    });
+  }
+
+  return null;
+}
+
 // `.env` is baked in at build time by Vite, so the resolved config can never
 // change within a running session — compute it once and reuse it.
 let cachedEnv: CloudEnv | null | undefined;
 
 export function readCloudEnv(): CloudEnv | null {
   if (cachedEnv !== undefined) return cachedEnv;
-
-  const envUrl = fromEnv('VITE_SUPABASE_URL');
-  const envKey = fromEnv('VITE_SUPABASE_PUBLISHABLE_KEY') || fromEnv('VITE_SUPABASE_ANON_KEY');
-  if (isValidHttpUrl(envUrl) && isNonEmptyKey(envKey)) {
-    cachedEnv = Object.freeze({
-      url: envUrl.replace(/\/+$/, ''),
-      anonKey: envKey,
-      source: 'env' as const
-    });
-    return cachedEnv;
-  }
-
-  if (isValidHttpUrl(FALLBACK_URL) && isNonEmptyKey(FALLBACK_ANON_KEY)) {
-    cachedEnv = Object.freeze({
-      url: FALLBACK_URL.replace(/\/+$/, ''),
-      anonKey: FALLBACK_ANON_KEY,
-      source: 'fallback' as const
-    });
-    return cachedEnv;
-  }
-
-  cachedEnv = null;
+  cachedEnv = resolveCloudEnv({
+    VITE_SUPABASE_URL: fromEnv('VITE_SUPABASE_URL'),
+    VITE_SUPABASE_PUBLISHABLE_KEY: fromEnv('VITE_SUPABASE_PUBLISHABLE_KEY'),
+    VITE_SUPABASE_ANON_KEY: fromEnv('VITE_SUPABASE_ANON_KEY')
+  });
   return cachedEnv;
 }
+
