@@ -552,75 +552,9 @@ export function coverageLabel(snap: CoreEvidenceSnapshot): string {
 /* -------------------------------------------------------------------------- *
  * BTTS BAND HEALTH — sávegészség értékelő (Phase 6 rangsor-integráció)
  *
- * Ezek a függvények a coreEligibility.ts-ben lévő `evaluateBttsBandHealth`
- * kiegészítéseként itt is exportálva vannak, hogy a `coreTrace.ts` és az
- * audit felületek egyaránt importálhassák anélkül, hogy a `coreEligibility`
- * → `coreEvidence` körfüggőség keletkezne.
- *
- * FONTOS: hard kizárást EGYIK függvény sem adhat ki ebből a modulból —
- * azt kizárólag az `isBttsEligibleForCore()` (`coreEligibility.ts`) kezeli.
- * A `priorityBonus` kizárólag a `getBttsRankingScore()` (`slip.ts`) által
- * olvasott rangsorolási korrekció.
+ * A kanonikus `evaluateBttsBandHealth` és `BandRiskEvaluation` a
+ * `coreEligibility.ts`-ben él. Ez a modul nem tartalmaz saját másolatot —
+ * a `coreTrace.ts` és az audit felületek a `coreEligibility.ts`-ből
+ * importálják, így nincs körkörös függőség és nincs duplikáció.
  * -------------------------------------------------------------------------- */
-
-export interface BandRiskEvaluation {
-  /**
-   * Tájékoztató flag — `true`, ha a sáv evidencia alapján kizárásra ajánlott.
-   * Hard kizárást NEM vált ki: azt az `isBttsEligibleForCore()` végzi.
-   */
-  isExcluded: boolean;
-  /**
-   * Rangsor-korrekció: pozitív = előre sorolás, negatív = hátrasorolás.
-   * A `getBttsRankingScore()` összeadja az alap pontszámmal.
-   */
-  priorityBonus: number;
-  /** Olvasható indoklás, ha `isExcluded` vagy erős negatív bónusz. */
-  reason?: string;
-}
-
-/**
- * A BTTS jelölt valószínűségi sávjának minőségi értékelése a rangsorhoz.
- *
- * SÁV LOGIKA:
- *   55–65% (ARANYBÁNYA): modell ≥ 58% ÉS h2hRate ≥ 55%  → +25 bónusz
- *   40–55% (HALÁLZÓNA):  modell < 48%                    → −50 büntetés
- *   20–40% (CÁFOLT):     modell < 35%                    → −100 büntetés
- *   Egyéb:               nincs korrekció                  →   0
- *
- * @param band      - Pl. '55–65%', '40–55%', '20–40%'
- * @param modelProb - A piac modell-valószínűsége (0..1)
- * @param h2hRate   - A mért H2H BTTS arány (0..1)
- */
-export function evaluateBttsBandHealth(
-  band: string,
-  modelProb: number,
-  h2hRate: number,
-): BandRiskEvaluation {
-  // 1. ARANYBÁNYA SÁV (55–65%): modell megerősíti → kiemelt bónusz
-  if (band === '55–65%' || (modelProb >= 0.58 && h2hRate >= 0.55)) {
-    return {
-      isExcluded: false,
-      priorityBonus: 25,
-    };
-  }
-
-  // 2. HALÁLZÓNA SÁV (40–55%): gyenge modell → erős rangsor-büntetés
-  if (band === '40–55%' && modelProb < 0.48) {
-    return {
-      isExcluded: true, // tájékoztató — hard kizárást az eligibility kezeli
-      priorityBonus: -50,
-      reason: `Halálzóna: 40–55% sáv, modell ${(modelProb * 100).toFixed(1)}% < 48% küszöb`,
-    };
-  }
-
-  // 3. CÁFOLT MINIMÁLIS SÁV (20–40%): kritikusan alacsony modell
-  if (band === '20–40%' || modelProb < 0.35) {
-    return {
-      isExcluded: true,
-      priorityBonus: -100,
-      reason: `Kritikusan alacsony modell (${(modelProb * 100).toFixed(1)}%) — cáfolt BTTS`,
-    };
-  }
-
-  return { isExcluded: false, priorityBonus: 0 };
-}
+export { evaluateBttsBandHealth, type BandRiskEvaluation } from './coreEligibility';

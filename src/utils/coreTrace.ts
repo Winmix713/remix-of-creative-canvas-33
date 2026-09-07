@@ -6,7 +6,6 @@ import { DECISION_THRESHOLDS, SECONDARY_MARKET_THRESHOLDS } from './decision';
 import {
   GATE_DETAIL,
   GATE_LABEL,
-  PHASE6_MARKET_GATING_ACTIVE,
   auditedCanonicalCandidates,
   canonicalWinnerReason,
   candidateKeyOf,
@@ -105,12 +104,12 @@ export const CORE_GATE_REGISTRY: readonly CoreGateSpec[] = [
   step: 6,
   name: 'Cáfolt saját valószínűségi sáv',
   file: 'utils/coreEvidence.ts + utils/slip.ts',
-  fn: "resolveCoreEvidence → level === 'excluded' → gateFailuresForKind (PHASE6_MARKET_GATING_ACTIVE)",
+  fn: "resolveCoreEvidence → level === 'excluded' → gateFailuresForKind (Policy A — ALWAYS active)",
   threshold: 'a SAJÁT sávban n ≥ 20, és a jelzett érték Wilson-intervallumon kívül van',
   why:
   `Csak a saját, értékelhető sáv zárhat ki; a bővített ±${CORE_EVIDENCE_MAX_RADIUS} ` +
-  'sávos környezet soha nem cáfolhat. A kapu Release D-ig INAKTÍV: a cáfolat ' +
-  'látszik és rangsor-büntet, de nem zár ki.',
+  'sávos környezet soha nem cáfolhat. Policy A: a cáfolt sáv ALWAYS kizár — ' +
+  'a modell valószínűség nem írhatja felül. Lásd lastinfo.md §1–2.',
   effect: 'hard'
 },
 {
@@ -194,7 +193,7 @@ export interface CoreTraceGateResult {
   binding: boolean;
 }
 
-export type CoreTraceVerdict = 'core' | 'gate_failed' | 'vetoed' | 'flagged_shadow' | 'outranked';
+export type CoreTraceVerdict = 'core' | 'gate_failed' | 'vetoed' | 'flagged_shadow' | 'outranked' | 'blocked';
 
 export interface CoreTraceCandidate {
   id: string;
@@ -391,11 +390,11 @@ profileVeto: boolean)
   },
   {
     id: 'band',
-    passed: !PHASE6_MARKET_GATING_ACTIVE || level !== 'excluded',
+    passed: level !== 'excluded',
     actual:
     (snap && snap.observations > 0 ? `${level} · n = ${snap.observations} / ${snap.required}` : level) +
-    (level === 'excluded' && !PHASE6_MARKET_GATING_ACTIVE ? ' · Phase 6 inaktív — nem zár ki' : ''),
-    binding: PHASE6_MARKET_GATING_ACTIVE
+    (level === 'excluded' ? ' · Policy A hard veto — cáfolt sáv' : ''),
+    binding: true
   },
   {
     id: 'model_conflict',
@@ -431,6 +430,12 @@ row: Omit<CoreTraceCandidate, 'primaryCause' | 'primaryCauseDetail'>)
       row.evidence === 'conditional' ?
       'Felkerült, de feltételes evidencia-szinten.' :
       'Felkerült, kalibrált evidencia-szinten.'
+    };
+  }
+  if (row.verdict === 'blocked' || row.evidence === 'excluded') {
+    return {
+      primaryCause: 'Cáfolt sáv (Policy A)',
+      primaryCauseDetail: `A sor saját sávja statisztikailag cáfolt (evidenceLevel=excluded). A modell valószínűség nem elégséges a felülbíráláshoz. Policy A — lásd lastinfo.md §2.`
     };
   }
   if (row.failed.length > 0) {
@@ -587,7 +592,7 @@ export function buildCoreTrace(input: CoreTraceInput): CoreTrace {
     (pattern) => coreQualityFailures(pattern).length === 0
   );
   const afterEvidenceRaw = qualityPassedRaw.filter(
-    (pattern) => !PHASE6_MARKET_GATING_ACTIVE || evidenceLevelOf(pattern) !== 'excluded'
+    (pattern) => evidenceLevelOf(pattern) !== 'excluded'
   );
   const afterModelConflictRaw = afterEvidenceRaw.filter(
     (pattern) => !gateFailuresForKind(pattern, 'core').includes('model_conflict')
@@ -637,6 +642,7 @@ export function buildCoreTrace(input: CoreTraceInput): CoreTrace {
     winnerPattern ? canonicalWinnerReason(winnerPattern, pattern) : null;
     const verdict: CoreTraceVerdict =
     slot !== null ? 'core' :
+    level === 'excluded' ? 'blocked' :
     failed.length > 0 ? 'gate_failed' :
     flagged && profileVeto && vetoActive ? 'vetoed' :
     flagged && profileVeto ? 'flagged_shadow' : 'outranked';
@@ -832,7 +838,7 @@ export function buildCoreTrace(input: CoreTraceInput): CoreTrace {
   { cause: 'Hideg minta (ESS)', count: countPrimary('sample'), detail: `ESS < ${H2H_ESS_WARM} — elsődleges kizárási okként számolva` },
   { cause: 'Stabilitás', count: countPrimary('stability'), detail: `stabilitás < ${CORE_STABILITY_MIN} — elsődleges kizárási okként számolva` },
   { cause: 'Piac visszamérés (csapatgól)', count: countPrimary('market_uncalibrated'), detail: 'csapatgól-család core tilalom — elsődleges kizárási okként számolva' },
-  { cause: 'Cáfolt sáv', count: countPrimary('band'), detail: PHASE6_MARKET_GATING_ACTIVE ? `megmért saját sáv, a jelzett valószínűség az intervallumon kívül — elsődleges okként ${countPrimary('band')} sor (a minőségi kapun már kiesett sorokkal együtt összesen ${allDisprovedRows.length} sor sávja cáfolt)` : `Phase 6 inaktív — nem zár ki, de ${allDisprovedRows.length} sor sávja cáfolt (a jelölt soron és a rangsor végén látszik)` },
+  { cause: 'Cáfolt sáv (Policy A)', count: countPrimary('band'), detail: `megmért saját sáv, a jelzett valószínűség az intervallumon kívül — Policy A hard veto. ${countPrimary('band')} sor elsődleges okként kizárva (a minőségi kapun már kiesett sorokkal együtt összesen ${allDisprovedRows.length} sor sávja cáfolt)` },
   { cause: 'Modell–H2H konfliktus', count: countPrimary('model_conflict'), detail: 'csak feltételes sornál, piac-szintű extrém eltérés + vékony minta esetén zár ki' },
   { cause: 'Kiütés-profil (ÉLES)', count: vetoedRows.length, detail: 'csak éles veto módban vesz le rekordot — a kanonizálás előtt' },
   { cause: 'Duplikátum összevonva (kanonikus vesztes)', count: candidates.filter((candidate) => candidate.canonicalStatus === 'merged').length, detail: 'NEM kapu-elutasítás: teljes kapun átjutott nyers rekord, amely ugyanannak a (mérkőzés, piac) csoportnak a kanonikus döntését elvesztette' },

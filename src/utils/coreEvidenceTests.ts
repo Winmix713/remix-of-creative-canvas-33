@@ -36,7 +36,7 @@ import {
   decisionQuadrantOf,
   diagnoseMarketBand } from
 './decision';
-import { PHASE6_MARKET_GATING_ACTIVE, evidenceLevelOf, gateFailuresForKind, isCoreEligible } from './slip';
+import { evidenceLevelOf, gateFailuresForKind, isCoreEligible } from './slip';
 import type {
   CoreEvidenceKind,
   CoreEvidenceLevel,
@@ -386,6 +386,36 @@ export function runCoreEvidenceSuite(): CoreEvidenceSuiteResult {
     { registered: false, modelProb: MODEL_PROB, marketBands: null, globalBand: null },
     'conditional',
     'missing_evidence'
+  ),
+
+  /* --- NAMED REGRESSION CASES — lastinfo.md §3 fixtures --------------- *
+   * Pin the full state transition chain for the three specific fixtures
+   * that drove the Policy A correction. Each asserts that the evidence
+   * level resolves to the expected terminal state. */
+
+  evidenceCase(
+    'Elche – Real Madrid (cáfolt sáv, magas modell)',
+    'A modell ~60% BTTS, de a saját sáv cáfolt (671 mérés, 228 találat) → ' +
+    'Policy A: hard kizárás, modelProb nem felülbírálja.',
+    registered(disprovedOwnBand()),
+    'excluded',
+    'disproved'
+  ),
+  evidenceCase(
+    'Wolverhampton – Newcastle (vékony sáv, feltételes)',
+    'A modell ~60% BTTS, de a saját sáv vékony (6 mérés) → feltételes, ' +
+    'nem kizárás. Az adathiány nem cáfolat.',
+    registered(thinOnly()),
+    'conditional',
+    'missing_evidence'
+  ),
+  evidenceCase(
+    'Real Madrid – Getafe (kalibrált sáv, magas modell)',
+    'A modell ~60% BTTS, a saját sáv kalibrált (120 mérés, 72 találat) → ' +
+    'kalibrált, jogosult core kártyára.',
+    registered(calibratedOwnBand()),
+    'calibrated',
+    'verified'
   )];
 
 
@@ -481,10 +511,9 @@ export function runCoreEvidenceSuite(): CoreEvidenceSuiteResult {
     isCoreEligible(calibratedPattern) ? 'jogosult' : 'kizárva'
   ),
   check(
-    'A cáfolt saját sáv LÁTSZIK, de Release D-ig nem zár ki (Phase 6 kapu inaktív)',
-    !PHASE6_MARKET_GATING_ACTIVE &&
-    isCoreEligible(excludedPattern) &&
-    !excludedFailures.includes('band') &&
+    'A cáfolt saját sáv Policy A alapján KIZÁR (hard veto, nem Phase 6 mögött)',
+    !isCoreEligible(excludedPattern) &&
+    excludedFailures.includes('band') &&
     evidenceLevelOf(excludedPattern) === 'excluded',
     `${evidenceLevelOf(excludedPattern)} · ${excludedFailures.join(', ') || 'nincs bukott kapu'}`
   ),

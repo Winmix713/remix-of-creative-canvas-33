@@ -207,9 +207,9 @@ export interface IngestResult {
 
 /**
  * Uploads local seasons to the Supabase cloud tier via the winmix-ingest edge
- * function. The function runs with the service-role key (server-side only), so
- * it can write to the RLS-protected winmix_ tables. The browser never touches
- * a service-role key — it just calls the endpoint.
+ * function. The function reads the service-role key from its own Deno env at
+ * runtime, so the browser only needs the publishable/anon key for the gateway.
+ * Opaque `sb_publishable_` keys go in `apikey` only — never as `Bearer`.
  *
  * Idempotent: re-uploading the same seasons safely upserts (no duplicates).
  */
@@ -257,13 +257,16 @@ export async function ingestSeasonsToCloud(params: {
   const timer = window.setTimeout(() => controller.abort(), 30000);
 
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      apikey: env.anonKey,
+    };
+    if (!isOpaqueKey(env.anonKey)) {
+      headers.Authorization = `Bearer ${env.anonKey}`;
+    }
     const res = await fetch(`${env.url}/functions/v1/winmix-ingest`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: env.anonKey,
-        Authorization: `Bearer ${env.anonKey}`,
-      },
+      headers,
       body: JSON.stringify({
         seasons: params.seasons,
         teamWeights: params.teamWeights,

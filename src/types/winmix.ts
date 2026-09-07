@@ -1008,6 +1008,24 @@ export interface H2HReversalStats {
 export type CoreEvidenceLevel = 'calibrated' | 'conditional' | 'excluded';
 
 /**
+ * The explicit state a candidate reaches in the core eligibility funnel.
+ * `BLOCKED` is the hard-veto terminal state — the candidate may not proceed
+ * to canonicalisation, ranking, or card placement. Policy A (see
+ * lastinfo.md §1–2): a statistically refuted evidence band is a hard veto.
+ */
+export type CoreCandidateState =
+| 'RAW'
+| 'CALIBRATED'
+| 'EVIDENCE_ASSESSED'
+| 'RISK_ASSESSED'
+| 'VALUE_ASSESSED'
+| 'CORE_ELIGIBLE'
+| 'CORE_PUBLISHED'
+| 'BLOCKED'
+| 'RESEARCH_ONLY'
+| 'FLAGGED';
+
+/**
  * WHY the level is what it is:
  *  `verified`              — own band evaluable and calibrated,
  *  `disproved`             — own band evaluable and over/underconfident,

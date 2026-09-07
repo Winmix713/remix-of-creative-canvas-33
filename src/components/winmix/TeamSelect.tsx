@@ -237,7 +237,12 @@ export function TeamSelect({
           o.key === value ? 'text-signal' : 'text-foreground'
         )}>
         
-              <span className="truncate">{o.display}</span>
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded border border-border bg-surface-1 font-heading text-[10px] font-medium tracking-tight text-muted-foreground">
+                  {o.display.replace(/[^\p{L}\p{N} ]/gu, '').trim().slice(0, 3).toUpperCase()}
+                </span>
+                <span className="truncate">{o.display}</span>
+              </span>
               <span className="flex shrink-0 items-center gap-1.5">
                 <span className="font-mono text-ui-2xs text-muted-foreground">{o.played}</span>
                 {o.key === value ? <Check className="h-3.5 w-3.5" aria-hidden={true} /> : null}
@@ -255,7 +260,9 @@ export function TeamSelect({
       
           Bezárás
         </button> :
-    null}
+    <div className="shrink-0 border-t border-border-subtle px-3 py-1.5 text-ui-2xs text-muted-foreground">
+      {visible.length} csapat
+    </div>}
     </div>;
 
 

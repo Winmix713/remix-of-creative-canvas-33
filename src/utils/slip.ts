@@ -88,7 +88,8 @@ import { MARQUEE_RANKING_ACTIVE } from './marqueePairs';
 import {
   BTTS_DEATHZONE_GATE_ACTIVE,
   evaluateBttsBandHealth,
-  isBttsEligibleForCore } from
+  isBttsEligibleForCore,
+  type CoreCandidateState } from
 './coreEligibility';
 import {
   CUSTOM_BTTS_MIN_RATE,
@@ -385,12 +386,12 @@ kind: 'core' | 'joker')
   if (kind === 'joker') {
     const failed: GateCondition[] = [];
     if (effectiveDecisionOf(pattern) === 'ignore') failed.push('decision');
-    if (level === 'excluded' && PHASE6_MARKET_GATING_ACTIVE) failed.push('band');
+    if (level === 'excluded') failed.push('band');
     return failed;
   }
 
   const failed = coreQualityFailures(pattern);
-  if (level === 'excluded' && PHASE6_MARKET_GATING_ACTIVE) failed.push('band');
+  if (level === 'excluded') failed.push('band');
   if (level === 'conditional' && hasMaterialModelConflict(pattern)) failed.push('model_conflict');
   return failed;
 }
@@ -821,6 +822,8 @@ export interface CoreCandidateRow {
    * `null`                — not part of a duplicate group.
    */
   canonicalStatus: CanonicalStatus;
+  /** The explicit state-machine state this candidate reached. */
+  candidateState: CoreCandidateState;
 }
 
 
@@ -1146,11 +1149,12 @@ markets: SlipMarketPreferences | null)
   const qualityPassedRaw = bttsPreFiltered.filter(
     (pattern) => coreQualityFailures(pattern).length === 0
   );
-  /* STAGE 2 — megmért és cáfolt saját sáv. Release D-ig a Phase 6 kapu
-     INAKTÍV: a cáfolt verdikt a soron és a trace-ben látszik, és a rangsor
-     (evidenceRank) a végére teszi, de a jelölt nem esik ki. */
+  /* --- STAGE 2 — megmért és cáfolt saját sáv. Policy A: a cáfolt sáv
+     ALWAYS kizár — nem a PHASE6 kapu mögött van, hanem az `isBttsEligibleForCore`
+     evidence veto-jában (Gate 0). Ez a stage a nem-BTTS sorok számára is
+     kizárja az `excluded` evidencia-szintet, konzisztens módon. */
   const afterEvidenceRaw = qualityPassedRaw.filter(
-    (pattern) => !PHASE6_MARKET_GATING_ACTIVE || evidenceLevelOf(pattern) !== 'excluded'
+    (pattern) => evidenceLevelOf(pattern) !== 'excluded'
   );
   const afterConditionalModelConflictRaw = afterEvidenceRaw.filter(
     (pattern) => !(evidenceLevelOf(pattern) === 'conditional' && hasMaterialModelConflict(pattern))
@@ -1233,9 +1237,17 @@ markets: SlipMarketPreferences | null)
     '(ugyanaz a mérkőzés és piac, másik generátor) — nem kapu-elutasítás.' :
     'Kapun belüli jelölt, de a rangsorban a felvett sorok mögé került, ' +
     'vagy a mérkőzése már szerepel a core oldalon.';
+    const level = evidenceLevelOf(pattern);
+    const candidateState: CoreCandidateState =
+      level === 'excluded' ? 'BLOCKED' :
+      failed.length > 0 ? 'FLAGGED' :
+      slot !== null ? 'CORE_PUBLISHED' :
+      canonicalWinner ? 'CORE_ELIGIBLE' :
+      level === 'calibrated' ? 'CALIBRATED' :
+      'EVIDENCE_ASSESSED';
     return {
       pattern,
-      evidence: evidenceLevelOf(pattern),
+      evidence: level,
       quadrant: effectiveDecisionOf(pattern),
       coreTier: coreTierOf(pattern),
       failed,
@@ -1243,7 +1255,8 @@ markets: SlipMarketPreferences | null)
       reason,
       canonicalWinner,
       mergedInto,
-      canonicalStatus
+      canonicalStatus,
+      candidateState
     };
   }).
   sort(
@@ -1880,14 +1893,19 @@ function lineOf(slot: SlipSlot, pattern: PatternHit): SlipLine {
   };
 }
 
-/** Freeze a draft into a persistable slip, stamped with its rule versions. */
+/** Freeze a draft into a persistable slip, stamped with its rule versions.
+ *  Policy A: BLOCKED candidates (evidenceLevel === 'excluded') must never
+ *  reach the published slip. The slot-assembly funnel already filters on
+ *  `isCoreEligible`, which calls `gateFailuresForKind` — and `excluded`
+ *  evidence now always pushes the `band` gate. This guard is a defensive
+ *  assertion that no BLOCKED record slipped through. */
 export function draftToSlip(
 draft: SlipDraft,
 roundName: string,
 strategy: CoreStrategySettings)
 : Slip {
   const lines = draft.slots.
-  filter((slot) => slot.pattern).
+  filter((slot) => slot.pattern && evidenceLevelOf(slot.pattern as PatternHit) !== 'excluded').
   map((slot) => lineOf(slot, slot.pattern as PatternHit));
 
   return {

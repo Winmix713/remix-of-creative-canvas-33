@@ -242,54 +242,18 @@ export function FixturePredictor() {
         
       </MetricGrid>
 
-      <MetricGrid>
-        <MetricCard
-          icon={ListChecks}
-          label="Összeállított párok"
-          value={`${ready.length} / ${totalFixtures}`}
-          sub="Kitöltött mérkőzések a fordulóban" />
-        
-        <MetricCard
-          icon={Search}
-          label="Talált minták"
-          value={allPatterns.length}
-          tone={stale ? 'warning' : 'neutral'}
-          sub={stale ? 'A forduló módosult az elemzés óta' : 'Az utolsó elemzés alapján'} />
-        
-        <MetricCard
-          icon={TrendingUp}
-          label="Legerősebb stabilitás"
-          value={topPattern?.stability ?? '—'}
-          tone="signal"
-          sub={topPattern?.label ?? 'Még nincs elemzés'} />
-        
-        <MetricCard
-          icon={Sigma}
-          label="Szelvény komb. valószínűség"
-          tone={duplicates.length > 0 ? 'negative' : 'neutral'}
-          value={
-          duplicates.length > 0 ?
-          'érvénytelen' :
-          draft && hasLines(draft) ?
-          `${(combined * 100).toFixed(1)}%` :
-          '—'
-          }
-          valueClassName={duplicates.length > 0 ? 'text-negative' : undefined}
-          sub={
-          duplicates.length > 0 ?
-          'Ismétlődő mérkőzés — a szorzat nem értelmezhető' :
-          draft ?
-          `${filledSlots} / ${draft.slots.length} szerepkör feltöltve` :
-          'A Top 3+3 sorok szorzata'
-          }
-          subClassName={duplicates.length > 0 ? 'text-negative' : undefined} />
-        
-      </MetricGrid>
-
       {noData ?
       <StateEmptyPanel
         title="Nincs betöltött adat"
-        message="A prediktor a betöltött szezonok csapataiból és H2H előzményeiből dolgozik. Töltsd fel a szezon CSV-ket a Taktikai Stúdióban, utána itt összeállítható a forduló." /> :
+        message="A prediktor a betöltött szezonok csapataiból és H2H előzményeiből dolgozik. Töltsd fel a szezon CSV-ket a Taktikai Stúdióban, utána itt összeállítható a forduló."
+        action={
+          <a
+            href="?mp_screen=dashboard"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-1 px-3 py-1.5 text-ui-xs font-medium text-foreground transition-colors hover:bg-elevated">
+            <Target className="h-3.5 w-3.5" aria-hidden={true} />
+            Taktikai Stúdió megnyitása
+          </a>
+        } /> :
 
       null}
 

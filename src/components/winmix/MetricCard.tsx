@@ -11,6 +11,22 @@ const toneClass: Record<MetricTone, string> = {
   warning: 'bg-warning-soft text-warning'
 };
 
+const iconToneClass: Record<MetricTone, string> = {
+  neutral: 'bg-white/[0.06] text-muted-foreground',
+  signal: 'bg-signal-soft text-signal',
+  positive: 'bg-positive-soft text-positive',
+  negative: 'bg-negative-soft text-negative',
+  warning: 'bg-warning-soft text-warning'
+};
+
+const accentBarClass: Record<MetricTone, string> = {
+  neutral: 'bg-border',
+  signal: 'bg-signal',
+  positive: 'bg-positive',
+  negative: 'bg-negative',
+  warning: 'bg-warning'
+};
+
 interface MetricCardProps {
   label: React.ReactNode;
   value: React.ReactNode;
@@ -46,11 +62,14 @@ export function MetricCard({
   intervalClassName
 }: MetricCardProps) {
   return (
-    <div className="cq flex min-h-[104px] flex-col rounded-xl border border-border bg-sheen p-4 shadow-panel sm:p-5">
+    <div className="cq relative flex min-h-[104px] flex-col overflow-hidden rounded-xl border border-border bg-sheen p-4 shadow-panel sm:p-5">
+      <span className={cn('absolute inset-x-0 top-0 h-0.5', accentBarClass[tone])} aria-hidden="true" />
       <div className="flex items-start justify-between gap-2">
         <span className="text-ui-xs text-muted-foreground">{label}</span>
         {Icon ?
-        <Icon className="h-[17px] w-[17px] shrink-0 text-muted-foreground" aria-hidden={true} /> :
+        <span className={cn('grid h-7 w-7 shrink-0 place-items-center rounded-full', iconToneClass[tone])}>
+          <Icon className="h-[15px] w-[15px]" aria-hidden={true} />
+        </span> :
         null}
       </div>
       <div
