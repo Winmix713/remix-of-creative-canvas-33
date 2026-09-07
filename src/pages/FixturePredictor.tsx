@@ -40,6 +40,8 @@ import { RoundBuilder } from '../components/winmix/RoundBuilder';
 import { SlipPanel } from '../components/winmix/SlipPanel';
 import { PatternConfidenceSummary } from '../components/winmix/PatternConfidenceSummary';
 import { EmptyCoreReasons } from '../components/winmix/EmptyCoreReasons';
+import { ProductionGatesPanel } from '../components/winmix/ProductionGatesPanel';
+import { ZeroCoreNotice } from '../components/winmix/ZeroCoreNotice';
 import { MobileSlipBar } from '../components/winmix/MobileSlipBar';
 
 const INTRO =
@@ -357,6 +359,12 @@ export function FixturePredictor() {
             readout={draft?.strategy ?? null}
             auditedMatches={auditCoverage.audited}
             totalMatches={auditCoverage.total} />
+          
+          <ProductionGatesPanel />
+
+          <ZeroCoreNotice draft={draft} />
+
+
           
 
           {/* The full derivation behind the three cards: funnel, gate chain,
