@@ -83,7 +83,7 @@ export function CloudTierTab({
 
             <CloudOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
             }
-            Felhő tier — csak olvasás, opcionális
+            Felhő tier & keresztellenőrzés
           </PanelTitle>
           <PanelSubtitle>
             {cloud.health.status === 'online' ?
@@ -143,11 +143,10 @@ export function CloudTierTab({
       null}
 
       <p className="border-b border-border px-3 py-3 text-ui-xs leading-relaxed text-muted-foreground sm:px-4">
-        A felhő tier kizárólag az <strong>anon</strong> kulcsot használja, RLS mögött, és csak olvas.
-        Az alkalmazás állapota továbbra is a helyi tárolóban él (karantén + JSON export/import a
-        katasztrófa-visszaállítás útja). Az itt látott SQL-oldali számok{' '}
-        <strong>tájékoztató jellegűek</strong>: keresztellenőrzésre szolgálnak, sosem kerülnek be a
-        pipeline-ba vagy a bootstrap-be.
+        A felhő tier az <strong>anon</strong> kulcsot használja, RLS mögött, csak olvas. A
+        CSV-feltöltés után a szezonok automatikusan szinkronizálódnak a Supabase-be. Az itt látott
+        SQL-oldali számok <strong>keresztellenőrzésre</strong> szolgálnak: a helyi pipeline
+        számítását viszonyítják a felhőben lévőhöz, sosem kerülnek be a pipeline-ba.
       </p>
 
       {ingestResult ? (

@@ -49,6 +49,7 @@ import {
   savePersistedState } from
 '../utils/storage';
 import { canon } from '../utils/teams';
+import { ingestSeasonsToCloud, isCloudTierConfigured } from '../utils/supabaseTier';
 import type {
   AliasMap,
   CalibrationMap,
@@ -1043,6 +1044,57 @@ export function useWinmixEngine() {
 
           if (ingest.added > 0) {
             toast.success(`${ingest.added} új bajnokság rögzítve!`);
+            // Auto-sync to Supabase if the cloud tier is configured — silent,
+            // non-blocking, failure only logs a diagnostic entry.
+            if (isCloudTierConfigured()) {
+              void (async () => {
+                try {
+                  const result = await ingestSeasonsToCloud({
+                    seasons: working.seasons.map((s) => ({
+                      id: s.id,
+                      league: s.league,
+                      seasonIndex: s.seasonIndex,
+                      name: s.name,
+                      fileName: s.fileName,
+                      createdAt: s.createdAt,
+                      contentHash: s.contentHash,
+                      orderMode: s.orderMode ?? 'chronological',
+                      matches: s.matches.map((m) => ({
+                        match_no: m.match_no,
+                        date: m.date,
+                        kickoffIso: m.kickoffIso ?? null,
+                        rowIndex: m.rowIndex,
+                        sourceFileId: m.sourceFileId ?? null,
+                        home_team: m.home_team,
+                        away_team: m.away_team,
+                        ht_home_score: m.ht_home_score,
+                        ht_away_score: m.ht_away_score,
+                        home_score: m.home_score,
+                        away_score: m.away_score,
+                      })),
+                    })),
+                    teamWeights: working.teamWeights,
+                    teamAliasMap: working.teamAliasMap,
+                  });
+                  if (result.success) {
+                    logDiagnostic(
+                      'info',
+                      `Felhő szinkron: ${result.seasons} szezon, ${result.teams} csapat, ${result.matches} mérkőzés feltöltve.`
+                    );
+                  } else {
+                    logDiagnostic(
+                      'warn',
+                      `Felhő szinkron sikertelen: ${result.errors.join('; ')}`
+                    );
+                  }
+                } catch (e) {
+                  logDiagnostic(
+                    'warn',
+                    `Felhő szinkron hiba: ${e instanceof Error ? e.message : String(e)}`
+                  );
+                }
+              })();
+            }
           } else {
             toast.error(
               'Egyetlen fájl sem került rögzítésre — nézd meg a figyelmeztetéseket.'

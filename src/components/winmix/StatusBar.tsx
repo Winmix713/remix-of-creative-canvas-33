@@ -39,8 +39,8 @@ export function StatusBar() {
         className="mx-4 mb-2 flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-ui-xs text-muted-foreground md:mx-6">
         
           <CloudOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          A felhő tier nem elérhető — a munkamenet helyi tárolóra váltott. Minden funkció működik,
-          a felhőből származó értékelések csak tájékoztató jellegűek voltak.
+          A felhő adatbázis nem elérhető — a munkamenet helyi tárolóra váltott. Minden funkció működik,
+          a keresztellenőrzés a kapcsolat visszaállításakor folytatódik.
         </div> :
       null}
     </div>);
