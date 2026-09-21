@@ -169,6 +169,23 @@ export interface MatchPipeline {
   };
 }
 
+export interface TeamStateVector {
+  team: string;
+  asOfKickoff: string | null;
+  sampleSize: number;
+  venueSampleSize: number;
+  venueAttack: number;
+  venueDefense: number;
+  formL5: number;
+  formL10: number;
+  bttsRate: number;
+  over25Rate: number;
+  cleanSheetRate: number;
+  failedToScoreRate: number;
+  scorelessDrawRate: number;
+  goalVolatility: number;
+}
+
 export interface MatchRow {
   /** Position in the season's CHRONOLOGICAL order (1-based), used for display. */
   match_no: number;

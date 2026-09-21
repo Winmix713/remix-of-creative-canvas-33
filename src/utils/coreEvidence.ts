@@ -72,7 +72,7 @@ import type {
  * `1.1` is the version in which exclusion became gated by the single
  * {@link exclusionAllowed} predicate and every snapshot became sealed.
  */
-export const CORE_EVIDENCE_RULE_VERSION = 'core-evidence/1.1';
+export const CORE_EVIDENCE_RULE_VERSION = 'core-evidence/1.2';
 
 /**
  * How many neighbouring bands on EACH side may be merged in to reach the

@@ -248,10 +248,13 @@ export function isBttsEligibleForCore(candidate: {
  * `getBttsRankingScore()` olvas be a rangsoroláshoz.
  *
  * SÁV LOGIKA:
- *   55–65% (ARANYBÁNYA): modell ≥ 58% ÉS h2hRate ≥ 55% → +25 bónusz
- *   40–55% (HALÁLZÓNA):  modell < 48%                  → −50 büntetés
- *   20–40% (CÁFOLT):     modell < 35%                  → −100 büntetés
- *   Egyéb:               nincs korrekció                → 0
+ *   55–65% (ARANYBÁNYA): modell ≥ 58% ÉS h2hRate ≥ 55% → +25 rangsorbónusz
+ *   40–55% (HALÁLZÓNA):  modell < 48%                  → −50 rangsorbüntetés
+ *   20–40% (CÁFOLT):     modell < 35%                  → −100 rangsorbüntetés
+ *   Egyéb:               nincs rangsor-korrekció        → 0
+ *
+ * A függvény kizárólag rangsorolási jelzést ad; hard kizárást csak az
+ * `isBttsEligibleForCore` evidence/deathzone kapui adhatnak.
  *
  * @param band      - A valószínűségi sáv neve, pl. '55–65%'
  * @param modelProb - A modell-valószínűség (0..1)
@@ -262,8 +265,9 @@ export function evaluateBttsBandHealth(
   modelProb: number,
   h2hRate: number,
 ): BandRiskEvaluation {
-  // 1. ARANYBÁNYA SÁV (55–65%): modell megerősíti → kiemelt bónusz
-  if (band === '55–65%' || (modelProb >= 0.58 && h2hRate >= 0.55)) {
+  // 1. ARANYBÁNYA SÁV (55–65%): megerősített sor → rangsorbónusz.
+  // Ez soha nem eligibility-kapu és más sávra sem terjed ki.
+  if (band === '55–65%' && modelProb >= 0.58 && h2hRate >= 0.55) {
     return {
       isExcluded: false,
       priorityBonus: 25,

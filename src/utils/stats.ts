@@ -4,6 +4,7 @@ import type {
   Outcome,
   Probs,
   SignTestResult,
+  TeamStateVector,
   TemperatureFit } from
 '../types/winmix';
 
@@ -71,6 +72,73 @@ k = 5)
 : number {
   const conceded = venueMatches.map((m) => isHome ? m.away_score : m.home_score);
   return decayedShrunkAvg(conceded, leagueAvg, lambda, k);
+}
+
+function orderedHistory(matches: readonly MatchRow[], asOf?: string | null): MatchRow[] {
+  return matches
+    .filter((match) => !asOf || !match.kickoffIso || match.kickoffIso < asOf)
+    .slice()
+    .sort((a, b) => {
+      const left = a.kickoffIso ?? '';
+      const right = b.kickoffIso ?? '';
+      return left.localeCompare(right) || a.match_no - b.match_no;
+    });
+}
+
+function teamMatches(team: string, matches: readonly MatchRow[], asOf?: string | null): MatchRow[] {
+  return orderedHistory(matches, asOf).filter((match) => match.home_team === team || match.away_team === team);
+}
+
+function teamGoals(team: string, match: MatchRow): { scored: number; conceded: number } {
+  return match.home_team === team
+    ? { scored: match.home_score, conceded: match.away_score }
+    : { scored: match.away_score, conceded: match.home_score };
+}
+
+function rate(values: readonly boolean[]): number {
+  return values.length === 0 ? 0 : values.filter(Boolean).length / values.length;
+}
+
+/**
+ * Builds one chronological, as-of TeamStateVector from prior matches only.
+ * Sparse metrics shrink toward conservative league defaults rather than
+ * inventing certainty from a single result.
+ */
+export function buildTeamStateVector(
+  team: string,
+  matches: readonly MatchRow[],
+  options: { asOf?: string | null; leagueGoalAvg?: number; decayLambda?: number; shrinkage?: number } = {}
+): TeamStateVector {
+  const history = teamMatches(team, matches, options.asOf);
+  const recent = history.slice(-10);
+  const leagueAvg = options.leagueGoalAvg ?? 1.35;
+  const lambda = options.decayLambda ?? VENUE_DECAY_LAMBDA;
+  const k = options.shrinkage ?? 5;
+  const goals = recent.map((match) => teamGoals(team, match));
+  const scored = goals.map((item) => item.scored);
+  const venue = recent.filter((match) => match.home_team === team);
+  const venueScored = venue.map((match) => match.home_score);
+  const venueConceded = venue.map((match) => match.away_score);
+  const form = (window: number) => decayedShrunkAvg(scored.slice(-window), leagueAvg, lambda, k);
+  const avg = scored.length ? scored.reduce((sum, value) => sum + value, 0) / scored.length : leagueAvg;
+  const variance = scored.length ? scored.reduce((sum, value) => sum + (value - avg) ** 2, 0) / scored.length : 0;
+
+  return {
+    team,
+    asOfKickoff: options.asOf ?? null,
+    sampleSize: history.length,
+    venueSampleSize: venue.length,
+    venueAttack: decayedShrunkAvg(venueScored, leagueAvg, lambda, k),
+    venueDefense: decayedShrunkAvg(venueConceded, leagueAvg, lambda, k),
+    formL5: form(5),
+    formL10: form(10),
+    bttsRate: rate(goals.map((item) => item.scored > 0 && item.conceded > 0)),
+    over25Rate: rate(goals.map((item) => item.scored + item.conceded > 2)),
+    cleanSheetRate: rate(goals.map((item) => item.conceded === 0)),
+    failedToScoreRate: rate(goals.map((item) => item.scored === 0)),
+    scorelessDrawRate: rate(history.map((match) => match.home_score === 0 && match.away_score === 0)),
+    goalVolatility: Math.sqrt(variance)
+  };
 }
 
 /** Temperature scaling — the exact same distribution is fitted and applied. */

@@ -13,18 +13,19 @@ export function CloudTierTab({
   ingestToCloud,
   ingesting,
   ingestResult,
-  downloadFromCloud,
-  downloading,
-  downloadResult
+    downloadFromCloud = () => undefined,
+    downloading = false,
+    downloadResult = null
+
 }: {
   league: League;
   crossCheck: CrossCheckRow[];
   ingestToCloud: () => void;
   ingesting: boolean;
   ingestResult: { success: boolean; seasons: number; teams: number; matches: number; rejected: number; repaired: number; errors: string[] } | null;
-  downloadFromCloud: () => void;
-  downloading: boolean;
-  downloadResult: { seasons: number; matches: number; failures: string[] } | null;
+  downloadFromCloud?: () => void;
+  downloading?: boolean;
+  downloadResult?: { seasons: number; matches: number; failures: string[] } | null;
 }) {
   const cloud = useCloudTierContext();
   const endpoint = useMemo(() => cloudEndpointSummary(), []);

@@ -53,20 +53,42 @@ function StudioShell() {
       });
       toast.dismiss(toastId);
 
-      if (files.length === 0) {
+      let importedFiles = files;
+      if (importedFiles.length === 0) {
+        // A preview sandbox vagy egy böngészői hálózati szabály blokkolhatja a
+        // GitHub raw fájlokat. Ilyenkor a repository-ba mentett backtest fixture
+        // továbbra is biztosít egy működő, reprodukálható tesztútvonalat.
+        try {
+          const fallbackResponse = await fetch('/test-data/winmix-backtest.csv', {
+            cache: 'no-store'
+          });
+          if (fallbackResponse.ok) {
+            const fallbackText = await fallbackResponse.text();
+            if (fallbackText.trim()) {
+              importedFiles = [
+                new File([fallbackText], 'winmix-backtest.csv', { type: 'text/csv' })
+              ];
+              toast.info('A távoli adatforrás nem volt elérhető; a helyi backtest CSV töltődött be.');
+            }
+          }
+        } catch {
+          // A végső hibaüzenetet lent adjuk ki, ha a helyi fixture sem érhető el.
+        }
+      }
+      if (importedFiles.length === 0) {
         toast.error(
           'Egyetlen mérkőzés-CSV sem töltődött le — ellenőrizd a hálózati kapcsolatot.'
         );
         return;
       }
-      if (failures.length > 0) {
+      if (failures.length > 0 && importedFiles === files) {
         toast.warning(
           `${failures.length} fájl kimaradt: ${failures.slice(0, 3).join(', ')}${
           failures.length > 3 ? ' …' : ''}`
 
         );
       }
-      await importFiles(files, 'auto');
+      await importFiles(importedFiles, 'auto');
     } catch (error) {
       toast.dismiss(toastId);
       toast.error(

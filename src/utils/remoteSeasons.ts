@@ -63,7 +63,13 @@ concurrency = 6)
       cursor += 1;
       const source = sources[index];
       try {
-        const response = await fetch(source.url, { cache: 'no-store' });
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 12000);
+        const response = await fetch(source.url, {
+          cache: 'no-store',
+          signal: controller.signal
+        });
+        window.clearTimeout(timeout);
         if (!response.ok) {
           failures.push(`${source.fileName} (HTTP ${response.status})`);
         } else {

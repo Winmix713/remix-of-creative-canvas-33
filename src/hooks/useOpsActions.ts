@@ -262,7 +262,7 @@ export function useOpsActions() {
       const totalMatches = downloads.reduce((sum, d) => sum + d.meta.matchCount, 0);
       setDownloadResult({ seasons: seasonList.length, matches: totalMatches, failures: [] });
 
-      await importFiles(files, league, 'auto');
+      await importFiles(files, 'auto');
     } catch (e) {
       setDownloadResult({
         seasons: 0,

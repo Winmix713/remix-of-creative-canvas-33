@@ -34,8 +34,8 @@ const GATES: GateDescriptor[] = [
   key: 'phase6',
   label: 'Phase 6 piaci kapuzás',
   active: PHASE6_MARKET_GATING_ACTIVE,
-  shadow: 'A cáfolt sávú piaci sor a rangsorban büntetést kap, de nem esik ki a kapun.',
-  live: 'A cáfolt sávú piaci sor kiesik a kapun.'
+  shadow: 'A Policy A szerint a mért, cáfolt saját sávú sor mindig hard vétó; a rangsorba nem kerül.',
+  live: 'A mért, cáfolt saját sávú piaci sor kiesik a kapun.'
 },
 {
   key: 'marquee',

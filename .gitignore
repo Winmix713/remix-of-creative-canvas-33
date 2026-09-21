@@ -23,3 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Derived analytical warehouse artifacts
+analytics-output/
+analytics-output-real/
+
+# Local analytical source snapshots
+public/newdocs/winmix_pipeline_db_v2_*.json

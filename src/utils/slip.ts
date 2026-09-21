@@ -125,10 +125,9 @@ import type {
 
 /** Bumped whenever WHICH line reaches a Core card can change.
  *
- *  2.3 — a 'band' (cáfolt sáv) kapu a PHASE6_MARKET_GATING_ACTIVE zászló mögé
- *        került (Release D-ig inaktív), a modell-konfliktus kapu pedig
- *        fixture-szintű helyett piac-szintű, és csak extrém eltérés + vékony
- *        minta esetén kizáró. */
+ *  2.3 — a 'band' (cáfolt sáv) kapu Policy A szerint mindig hard veto,
+ *        a modell-konfliktus kapu pedig fixture-szintű helyett piac-szintű,
+ *        és csak extrém eltérés + vékony minta esetén kizáró. */
 /*  2.4 — RANGADÓ: a BTTS rangsor első kritériuma a `rankHitRate`, amely a
  *        megjelölt párosítás saját H2H evidenciájából származó levonást
  *        vonja le a hitRate-ből. A MARQUEE_RANKING_ACTIVE zászló mögött van,
@@ -142,14 +141,10 @@ import type {
 export const CORE_SELECTION_RULE_VERSION = 'core-selection/2.5';
 
 /* -------------------------------------------------------------------------- *
- * PHASE 6 ACTIVATION GATE (Release D)
- *
- * A megmért, CÁFOLT saját sáv ('excluded' evidencia) jelenleg NEM terminális
- * kizárás: a verdikt továbbra is látszik a jelölt sor evidencia-oszlopában és
- * a trace-ben, és a rangsor (evidenceRank) természetesen a kalibrált /
- * feltételes sorok mögé teszi — de a kártya megtölthető vele. A 'band' kapu
- * csak akkor zár újra, ha a Phase 6 kalibrációs napló kellően feltöltődött:
- * Release D-ben flippeljük true-ra.
+ * Legacy feature flag — retained for persisted configuration compatibility.
+ * Policy A is unconditional: `excluded` evidence is always a hard veto and
+ * never reaches ranking or publication. The flag is intentionally not used to
+ * weaken that invariant.
  * -------------------------------------------------------------------------- */
 export const PHASE6_MARKET_GATING_ACTIVE = false;
 
@@ -280,7 +275,8 @@ export const GATE_DETAIL: Record<GateCondition, string> = {
   band:
   'A sor saját valószínűségi sávját MEGMÉRTÜK, és a jelzett valószínűség a ' +
   'tényleges beválás Wilson-intervallumán kívül van. Cáfolt evidencia — nem ' +
-  'adathiány. A kapu a Phase 6 aktiválásával (Release D) lesz újra kizáró.',
+  'adathiány. Policy A szerint ez terminális hard veto: a modell valószínűsége ' +
+  'nem írhatja felül.',
   model_conflict:
   'Feltételes evidencia mellett a piac mért aránya és a saját modellbecslése ' +
   'vékony mintán extrémen (≥ 25 százalékpont) eltér — a sor semmire nem támaszkodik.',
@@ -1418,12 +1414,11 @@ markets: SlipMarketPreferences | null)
     'egyszer számolnak, és egy kapun elbukott rekord soha nem tud levenni egy ' +
     'érvényes duplikátumot.'] :
     []),
-    ...(placedExcludedCount > 0 ?
-    [
-    `${placedExcludedCount} core sor CÁFOLT saját sávval került kártyára: a Phase 6 ` +
-    'market gate jelenleg INAKTÍV, ezért a mért cáfolat nem zár ki, csak látható ' +
-    'figyelmeztetés és rangsor-hátrány.'] :
-    []),
+  ...(placedExcludedCount > 0 ?
+  [
+  `${placedExcludedCount} core sor cáfolt saját sávval került kártyára: ez sérti a ` +
+  'Policy A invariánsát, amely szerint az excluded evidencia terminális hard veto.'] :
+  []),
     ...(!BTTS_DEATHZONE_GATE_ACTIVE ?
     [
     'BTTS halálzóna kapu (40–55% sáv, modell < 48%) SHADOW módban van — a rangsor ' +

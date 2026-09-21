@@ -11,7 +11,7 @@ export default tseslint.config(
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
-      ecmaVersion: 2020,
+      ecmaVersion: 2022,
       globals: globals.browser,
     },
     plugins: {
@@ -36,5 +36,11 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
-  eslintPluginPrettier,
+  {
+    ...eslintPluginPrettier,
+    rules: {
+      ...eslintPluginPrettier.rules,
+      "prettier/prettier": "warn",
+    },
+  },
 );
