@@ -8,16 +8,14 @@
  * Resolution order:
  *  1. Vite environment (`.env` → VITE_SUPABASE_URL + VITE_SUPABASE_PUBLISHABLE_KEY,
  *     or the historical VITE_SUPABASE_ANON_KEY name)
- *  2. The baked-in fallback below (the Lovable Cloud project of this app), so
- *     the tier also works in builds where a `.env` file is not injected.
- *  3. `null` — genuinely unconfigured. Reachable only if BOTH the env and the
- *     fallback fail validation (e.g. someone blanks out the constants below
- *     for a stripped build). See docs/supabase-migration.md §1.3.
+ *  2. The baked-in URL below identifies the WinMix Supabase project. Its key is
+ *     intentionally not bundled, so builds must provide the publishable key.
+ *  3. `null` — genuinely unconfigured when the URL or publishable key is absent.
  */
 
-const FALLBACK_URL = 'https://oaadhaapbgzyibyadgdh.supabase.co';
-/** Publishable key (Lovable Cloud project oaadhaapbgzyibyadgdh) — browser-safe behind RLS. */
-const FALLBACK_ANON_KEY = 'sb_publishable_juS6O5xPz0l61tz7c4nAyw_9cFO5bnx';
+const FALLBACK_URL = 'https://yvwnchyedxkajtwwkkqd.supabase.co';
+// Do not bundle a key from another Supabase project as a fallback.
+const FALLBACK_ANON_KEY = '';
 
 export interface CloudEnv {
   url: string;
