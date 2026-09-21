@@ -42,7 +42,7 @@ export function DataStudio() {
   const { skillCI } = stats;
 
   return (
-    <div className="flex flex-col gap-4 md:gap-5">
+    <div className="flex flex-col gap-4 md:gap-5 lg:px-0">
       {/* --- Data ---------------------------------------------------------- */}
       <SectionHeading icon={Database} hint="CSV / JSON betöltés és szezonok">
         Adatok

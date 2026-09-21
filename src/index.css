@@ -708,6 +708,19 @@
   .cq {
     container-type: inline-size;
   }
+  /* --- Fluid page spacing ----------------------------------------------
+     Gap that scales smoothly from mobile to desktop instead of jumping
+     at a single breakpoint. */
+  .gap-page {
+    gap: clamp(1rem, 0.75rem + 1vw, 1.25rem);
+  }
+  /* --- Responsive table wrapper ---------------------------------------
+     Ensures tables scroll horizontally on narrow screens without
+     breaking the page layout. */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   /* --- Touch targets --------------------------------------------------- */
   @media (pointer: coarse) {
     .tap {

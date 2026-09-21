@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.env
+
+# Built from src/engine-core immediately before Supabase Edge Function deploy.
+supabase/functions/_shared/engine-core.bundle.ts

@@ -204,7 +204,24 @@ export function CoreDecisionTracePanel({
     [analyses, readout, familyCodes, profileVeto]
   );
 
-  if (!trace) return null;
+  if (!trace) {
+    return (
+      <Collapsible
+        title="Core decision trace — teljes levezetés"
+        subtitle="Nincs elérhető trace"
+        defaultOpen={true}>
+        <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+          <GitBranch className="h-8 w-8 text-muted-foreground" aria-hidden={true} />
+          <p className="text-[12px] leading-relaxed text-muted-foreground">
+            Még nincs core decision trace. Ez a panel a core kártyák
+            felépítésének minden lépését megmutatja — a tölcsértől a kapun
+            keresztül a kártyára kerülésig. A trace akkor jelenik meg, amikor
+            a stratégia futtatása eredményt ad.
+          </p>
+        </div>
+      </Collapsible>
+    );
+  }
 
   const handleCopy = async () => {
     try {
@@ -494,6 +511,8 @@ export function CoreDecisionTracePanel({
                   className={
                   row.slot !== null ?
                   'text-signal' :
+                  row.verdict === 'blocked' ?
+                  'text-negative font-bold' :
                   row.verdict === 'gate_failed' ?
                   'text-negative' :
                   'text-muted-foreground'

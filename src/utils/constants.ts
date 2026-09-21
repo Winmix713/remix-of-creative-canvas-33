@@ -15,7 +15,7 @@ export const CALIB_MIN_SAMPLE = 24;
 /** Bounded concurrency for batch file reads. */
 export const READ_CONCURRENCY = 6;
 /** Cooperative yielding cadence during long recompute loops. */
-export const YIELD_EVERY_N_MATCHES = 25;
+export const YIELD_EVERY_N_MATCHES = 50;
 /** Rolling evaluation window size. */
 export const EVAL_WINDOW_SIZE = 100;
 

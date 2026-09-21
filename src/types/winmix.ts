@@ -47,7 +47,8 @@ export type ViewKey =
 'pipeline' |
 'h2h' |
 'predictor' |
-'ledger';
+'ledger' |
+'league';
 
 export interface Probs {
   home: number;
@@ -603,6 +604,8 @@ export interface PersistedState {
   savedAt: string;
   seasons: Season[];
   teamWeights: WeightMap;
+  /** Explicit operator choices. Missing keys remain eligible for auto-refresh. */
+  manualWeightOverrides: WeightMap;
   teamAliasMap: AliasMap;
   seasonCounters: SeasonCounters;
   calibration: CalibrationMap;
@@ -646,6 +649,11 @@ export interface EnsembleSampleRecord {
 
 export interface PipelineCheckpoint {
   league: League;
+  /**
+   * TRUST BOUNDARY — canonical compatibility marker for the feature vector.
+   * The runtime validator compares this with the current `FEATURE_SCHEMA_VERSION`.
+   * A mismatch invalidates the checkpoint instead of silently mixing schemas.
+   */
   /** Must equal `FEATURE_SCHEMA_VERSION`, or the checkpoint is discarded. */
   featureSchemaVersion: number;
   /**
@@ -958,6 +966,23 @@ export type BttsVetoReason =
 'model_conflict';
 
 /**
+ * Structured BTTS veto explanation.
+ *
+ * This is the additive, type-safe representation of the legacy parallel
+ * `reasonCodes` + `vetoReasons` arrays. `code` and `message` are one semantic
+ * unit and therefore cannot drift apart when a producer constructs a reason.
+ *
+ * The legacy arrays remain part of the persisted contract for backwards
+ * compatibility and audit history. New producers should populate
+ * `reasonEntries` and keep the legacy arrays in lock-step until all historical
+ * consumers have migrated.
+ */
+export interface BttsVetoReasonEntry {
+  code: BttsVetoReason;
+  message: string;
+}
+
+/**
  * PHASE 4 — the shadow assessment of one BTTS Core candidate.
  *
  * `wouldVeto` is DIAGNOSTIC while the veto runs in shadow mode: it is recorded
@@ -974,9 +999,27 @@ export interface BttsBlowoutRiskAssessment {
   effectiveSampleSize: number;
   usedReverse: boolean;
   wouldVeto: boolean;
+  /**
+   * Legacy machine-readable veto codes.
+   *
+   * Persisted for backwards compatibility. The canonical typed representation
+   * for new data is `reasonEntries`, where the code/message relationship is
+   * structural rather than positional.
+   */
   reasonCodes: BttsVetoReason[];
-  /** Sentence-form reasons, in the same order as `reasonCodes`. */
+  /**
+   * Legacy sentence-form reasons, in the same order as `reasonCodes`.
+   *
+   * Persisted for backwards compatibility. Keep this array aligned with
+   * `reasonCodes` when emitting legacy-compatible records.
+   */
   vetoReasons: string[];
+  /**
+   * Additive structured representation of the same veto reasons.
+   * When present, `reasonEntries[i].code === reasonCodes[i]` and
+   * `reasonEntries[i].message === vetoReasons[i]`.
+   */
+  reasonEntries?: BttsVetoReasonEntry[];
   /** Non-decisive HT booster label: both teams historically score early. */
   earlyOpenProfile: boolean;
 }
@@ -1006,6 +1049,24 @@ export interface H2HReversalStats {
  * ------------------------------------------------------------------ */
 
 export type CoreEvidenceLevel = 'calibrated' | 'conditional' | 'excluded';
+
+/**
+ * The explicit state a candidate reaches in the core eligibility funnel.
+ * `BLOCKED` is the hard-veto terminal state — the candidate may not proceed
+ * to canonicalisation, ranking, or card placement. Policy A (see
+ * lastinfo.md §1–2): a statistically refuted evidence band is a hard veto.
+ */
+export type CoreCandidateState =
+| 'RAW'
+| 'CALIBRATED'
+| 'EVIDENCE_ASSESSED'
+| 'RISK_ASSESSED'
+| 'VALUE_ASSESSED'
+| 'CORE_ELIGIBLE'
+| 'CORE_PUBLISHED'
+| 'BLOCKED'
+| 'RESEARCH_ONLY'
+| 'FLAGGED';
 
 /**
  * WHY the level is what it is:
@@ -1267,7 +1328,20 @@ export interface FixtureAnalysis {
   notes: string[];
 }
 
+/**
+ * Derived settlement state of an individual slip line.
+ *
+ * This is intentionally a type alias rather than an independently persisted
+ * "source" state: producers derive it from the line's result/settlement data.
+ */
 export type LineGrade = 'pending' | 'won' | 'lost';
+
+/**
+ * Derived aggregate settlement state of a slip.
+ *
+ * `pending`, `won`, `partial` and `lost` describe the current settlement view;
+ * they are not an independent model-input contract.
+ */
 export type SlipStatus = 'pending' | 'won' | 'partial' | 'lost';
 
 /**

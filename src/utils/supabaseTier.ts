@@ -14,6 +14,7 @@
  *  • Anything fetched from SQL is ADVISORY / UI-only. It never feeds the
  *    pipeline, the joint score matrix, or the seeded bootstrap.
  */
+import { z } from 'zod';
 import type { League } from '../types/winmix';
 import { readCloudEnv } from './cloudConfig';
 
@@ -95,11 +96,11 @@ function isOpaqueKey(key: string): boolean {
   return key.startsWith('sb_publishable_') || key.startsWith('sb_secret_');
 }
 
-async function restGet(path: string): Promise<unknown> {
+async function restGet(path: string, timeoutMs: number = PROBE_TIMEOUT_MS): Promise<unknown> {
   const env = readEnv();
   if (!env) throw new Error('A felhő tier nincs konfigurálva (VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY).');
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const headers: Record<string, string> = {
       // The key belongs in `apikey`. Legacy JWT anon keys are mirrored into
@@ -142,7 +143,8 @@ export async function probeCloudTier(): Promise<CloudTierHealth> {
       await restGet('view_team_ratings?select=canonical_key&limit=1');
     } catch (e) {
       if (e instanceof CloudHttpError && (e.status === 401 || e.status === 403)) throw e;
-      await restGet('');
+      // view_team_ratings may not exist yet — probe a table that does.
+      await restGet('winmix_seasons?select=id&limit=1');
     }
     return { status: 'online', degraded: false, lastError: null, checkedAt: new Date().toISOString() };
   } catch (e) {
@@ -166,31 +168,273 @@ export interface CloudTeamRating {
   autoWeightIndex: number;
 }
 
-function num(value: unknown): number {
-  const n = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
+const TeamRatingSchema = z.array(
+  z.object({
+    canonical_key: z.string().min(1),
+    display_name: z.string(),
+    total_played: z.union([z.number(), z.string()]).transform(Number),
+    net_home: z.union([z.number(), z.string()]).transform(Number),
+    net_away: z.union([z.number(), z.string()]).transform(Number),
+    ppg: z.union([z.number(), z.string()]).transform(Number),
+    auto_weight_index: z.union([z.number(), z.string()]).transform(Number),
+  }),
+);
 
 /**
  * Reads the SQL-side ratings view for cross-checking against
  * `computeAutoTeamWeights()`. UI-only: these numbers are displayed and diffed,
  * never applied as weights and never fed into the pipeline.
+ *
+ * The raw PostgREST response is validated through a Zod schema before any
+ * value reaches the UI — a malformed API response degrades the cloud tier
+ * rather than passing bad data through.
  */
 export async function fetchCloudTeamRatings(league: League): Promise<CloudTeamRating[]> {
   const raw = await restGet(
-    `view_team_ratings?league=eq.${encodeURIComponent(league)}&select=canonical_key,display_name,total_played,net_home,net_away,ppg,auto_weight_index`
+    `view_team_ratings?league=eq.${encodeURIComponent(league)}&select=canonical_key,display_name,total_played,net_home,net_away,ppg,auto_weight_index`,
+    10000
   );
-  if (!Array.isArray(raw)) return [];
-  return raw.map((row) => {
-    const r = row as Record<string, unknown>;
-    return {
-      canonicalKey: String(r.canonical_key ?? ''),
-      displayName: String(r.display_name ?? ''),
-      totalPlayed: num(r.total_played),
-      netHome: num(r.net_home),
-      netAway: num(r.net_away),
-      ppg: num(r.ppg),
-      autoWeightIndex: num(r.auto_weight_index)
-    };
+  const parsed = TeamRatingSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `A view_team_ratings válasz nem felel meg a várt sémának: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`
+    );
+  }
+  return parsed.data.map((r) => ({
+    canonicalKey: r.canonical_key,
+    displayName: r.display_name,
+    totalPlayed: r.total_played,
+    netHome: r.net_home,
+    netAway: r.net_away,
+    ppg: r.ppg,
+    autoWeightIndex: r.auto_weight_index,
+  }));
+}
+
+/** One season's metadata from `winmix_seasons`, with match count. */
+export interface CloudSeasonMeta {
+  id: string;
+  league: League;
+  seasonIndex: number;
+  name: string;
+  fileName: string;
+  contentHash: string | null;
+  matchCount: number;
+  orderMode: 'chronological' | 'source-order';
+  createdAt: string;
+}
+
+const SeasonMetaSchema = z.array(
+  z.object({
+    id: z.string().uuid(),
+    league: z.string(),
+    season_index: z.union([z.number(), z.string()]).transform(Number),
+    name: z.string(),
+    file_name: z.string(),
+    content_hash: z.string().nullable().optional(),
+    match_count: z.union([z.number(), z.string()]).transform(Number),
+    order_mode: z.string(),
+    created_at: z.string(),
+  }),
+);
+
+/** One match row from `winmix_matches`, with team display names joined via PostgREST. */
+const CloudMatchSchema = z.array(
+  z.object({
+    match_no: z.union([z.number(), z.string()]).transform(Number),
+    match_date_raw: z.string().nullable().optional(),
+    kickoff_iso: z.string().nullable().optional(),
+    home_team: z.object({ display_name: z.string() }),
+    away_team: z.object({ display_name: z.string() }),
+    ht_home_score: z.number().nullable().optional(),
+    ht_away_score: z.number().nullable().optional(),
+    home_score: z.union([z.number(), z.string()]).transform(Number),
+    away_score: z.union([z.number(), z.string()]).transform(Number),
+  }),
+);
+
+export interface CloudSeasonDownload {
+  meta: CloudSeasonMeta;
+  csvText: string;
+}
+
+/**
+ * Fetches season metadata from `winmix_seasons`, optionally filtered by league.
+ * Returns an empty array if the cloud tier is unconfigured or the table is empty.
+ */
+export async function fetchCloudSeasonList(league?: League): Promise<CloudSeasonMeta[]> {
+  const filter = league ? `league=eq.${encodeURIComponent(league)}&` : '';
+  const raw = await restGet(
+    `winmix_seasons?${filter}select=id,league,season_index,name,file_name,content_hash,match_count,order_mode,created_at&order=league,season_index.asc`,
+    10000
+  );
+  const parsed = SeasonMetaSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `A winmix_seasons válasz nem felel meg a várt sémának: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`
+    );
+  }
+  return parsed.data.map((r) => ({
+    id: r.id,
+    league: r.league as League,
+    seasonIndex: r.season_index,
+    name: r.name,
+    fileName: r.file_name,
+    contentHash: r.content_hash ?? null,
+    matchCount: r.match_count,
+    orderMode: r.order_mode as 'chronological' | 'source-order',
+    createdAt: r.created_at,
+  }));
+}
+
+/**
+ * Downloads a single season's matches from the cloud and reconstructs CSV text
+ * compatible with the existing import pipeline. Team display names are resolved
+ * via a join to `winmix_teams`.
+ */
+const seasonDataCache = new Map<string, CloudSeasonDownload>();
+
+export async function fetchCloudSeasonData(meta: CloudSeasonMeta): Promise<CloudSeasonDownload> {
+  const cached = seasonDataCache.get(meta.id);
+  if (cached) return cached;
+
+  const raw = await restGet(
+    `winmix_matches?season_id=eq.${encodeURIComponent(meta.id)}&select=match_no,match_date_raw,kickoff_iso,ht_home_score,ht_away_score,home_score,away_score,home_team:home_team_id(display_name),away_team:away_team_id(display_name)&order=match_no.asc`,
+    30000
+  );
+  const parsed = CloudMatchSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `A winmix_matches válasz nem felel meg a várt sémának: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`
+    );
+  }
+
+  const header = 'date,home_team,away_team,ht_home_score,ht_away_score,home_score,away_score';
+  const lines = parsed.data.map((m) => {
+    const date = m.match_date_raw ?? '';
+    const htHome = m.ht_home_score ?? '';
+    const htAway = m.ht_away_score ?? '';
+    return [date, m.home_team.display_name, m.away_team.display_name, htHome, htAway, m.home_score, m.away_score].join(',');
   });
+  const download = { meta, csvText: [header, ...lines].join('\n') };
+  seasonDataCache.set(meta.id, download);
+  return download;
+}
+
+export interface IngestResult {
+  success: boolean;
+  seasons: number;
+  teams: number;
+  matches: number;
+  rejected: number;
+  repaired: number;
+  errors: string[];
+}
+
+/**
+ * Uploads local seasons to the Supabase cloud tier via the winmix-ingest edge
+ * function. The function reads the service-role key from its own Deno env at
+ * runtime, so the browser only needs the publishable/anon key for the gateway.
+ * Opaque `sb_publishable_` keys go in `apikey` only — never as `Bearer`.
+ *
+ * Idempotent: re-uploading the same seasons safely upserts (no duplicates).
+ */
+export async function ingestSeasonsToCloud(params: {
+  seasons: Array<{
+    id: string;
+    league: League;
+    seasonIndex: number;
+    name: string;
+    fileName: string;
+    createdAt: string;
+    contentHash: string | null;
+    orderMode?: string;
+    matches: Array<{
+      match_no: number;
+      date: string;
+      kickoffIso?: string | null;
+      rowIndex?: number;
+      sourceFileId?: string | null;
+      home_team: string;
+      away_team: string;
+      ht_home_score: number | null;
+      ht_away_score: number | null;
+      home_score: number;
+      away_score: number;
+    }>;
+  }>;
+  teamWeights?: Record<string, Record<string, number>>;
+  teamAliasMap?: Record<string, Record<string, string>>;
+}): Promise<IngestResult> {
+  const env = readEnv();
+  if (!env) {
+    return {
+      success: false,
+      seasons: 0,
+      teams: 0,
+      matches: 0,
+      rejected: 0,
+      repaired: 0,
+      errors: ['A felhő tier nincs konfigurálva.'],
+    };
+  }
+
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      apikey: env.anonKey,
+    };
+    if (!isOpaqueKey(env.anonKey)) {
+      headers.Authorization = `Bearer ${env.anonKey}`;
+    }
+    const res = await fetch(`${env.url}/functions/v1/winmix-ingest`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        seasons: params.seasons,
+        teamWeights: params.teamWeights,
+        teamAliasMap: params.teamAliasMap,
+      }),
+      signal: controller.signal,
+    });
+
+    const body = await res.json().catch(() => ({ error: 'Érvénytelen válasz a szervertől' }));
+
+    if (!res.ok) {
+      return {
+        success: false,
+        seasons: 0,
+        teams: 0,
+        matches: 0,
+        rejected: 0,
+        repaired: 0,
+        errors: [body.error ?? `HTTP ${res.status}`],
+      };
+    }
+
+    return {
+      success: body.success ?? false,
+      seasons: body.seasons ?? 0,
+      teams: body.teams ?? 0,
+      matches: body.matches ?? 0,
+      rejected: body.rejected ?? 0,
+      repaired: body.repaired ?? 0,
+      errors: body.errors ?? [],
+    };
+  } catch (e) {
+    return {
+      success: false,
+      seasons: 0,
+      teams: 0,
+      matches: 0,
+      rejected: 0,
+      repaired: 0,
+      errors: [e instanceof Error ? e.message : String(e)],
+    };
+  } finally {
+    window.clearTimeout(timer);
+  }
 }

@@ -5,6 +5,7 @@ import {
   Database,
   Download,
   Gauge,
+  LineChart,
   Target,
   Upload,
   Users } from
@@ -22,6 +23,7 @@ const NAV_ITEMS: NavItem[] = [
 { key: 'dashboard', label: 'Taktikai Stúdió & Adatbázis', icon: Database },
 { key: 'operations', label: 'Pipeline Üzemeltetés (súlyok, beállítások, felhő)', icon: Gauge },
 { key: 'pipeline', label: 'Pipeline v2 Audit & Telemetria', icon: BarChart3 },
+{ key: 'league', label: 'Liga Elemző — Bajnokság & Csapat Statisztikák', icon: LineChart },
 { key: 'h2h', label: 'H2H — Egymás Elleni Mérkőzések (Kumulatív)', icon: Users },
 { key: 'predictor', label: 'Forduló Prediktor — Top 3+3', icon: Target },
 { key: 'ledger', label: 'Tipp Napló & Visszacsatolás', icon: ClipboardList }];

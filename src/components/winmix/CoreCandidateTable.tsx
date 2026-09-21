@@ -3,6 +3,7 @@ import type { CoreCandidateRow, CoreExecutionTrace, StrategyReadout } from '../.
 import { GATE_LABEL, coreConfidenceOf } from '../../utils/slip';
 import { DECISION_META } from '../../utils/decision';
 import { MARQUEE_LEVEL_LABEL, marqueeSummaryText } from '../../utils/marqueePairs';
+import { CandidateStateBadge } from './CandidateStateBadge';
 import { CoreEvidenceBadge } from './CoreEvidenceBadge';
 import { CoreTierBadge } from './CoreTierBadge';
 
@@ -64,6 +65,8 @@ function CandidateRow({ row }: {row: CoreCandidateRow;}) {
             {pattern.fixtureLabel}
           </span>
           <span className="flex flex-wrap items-center gap-1">
+            {/* ÁLLAPOTGÉP — a döntési lánc végállapota, minden soron. */}
+            <CandidateStateBadge state={row.candidateState} />
             {placed ?
             <span className="rounded-sm border border-signal/30 bg-signal-soft px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-label text-signal">
                 Core {row.slot}

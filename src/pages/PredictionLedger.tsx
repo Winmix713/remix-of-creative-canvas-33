@@ -214,7 +214,7 @@ export function PredictionLedger() {
                 A másodlagos (volatilis) sorok külön mérve — sosem összevonva
               </PanelSubtitle>
             </PanelHeader>
-            <div className="overflow-x-auto">
+            <div className="table-responsive">
               <table className="w-full min-w-[560px] border-collapse text-left">
                 <thead>
                   <tr className="bg-black/20">
@@ -292,7 +292,7 @@ export function PredictionLedger() {
         Szelvénytár
       </SectionHeading>
       <Panel>
-        <PanelHeader className="flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+        <PanelHeader className="flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div
             className="flex flex-wrap items-center gap-1.5"
             role="group"
@@ -317,7 +317,7 @@ export function PredictionLedger() {
             )}
           </div>
 
-          <div className="relative w-full sm:w-56">
+          <div className="relative w-full sm:w-48 lg:w-56">
             <Search
               className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
               aria-hidden={true} />

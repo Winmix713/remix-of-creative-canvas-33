@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Activity, BarChart3, Gauge, History, Ruler, Sigma, Thermometer } from 'lucide-react';
 import { useWinmix } from '../contexts/WinmixContext';
 import { useLeagueForecastStats } from '../hooks/useLeagueForecastStats';
@@ -22,6 +22,7 @@ import { EmptyRow, Table, TableScroll, Td, Th, Tr } from '../components/winmix/D
 import { MarketFeedbackPanel } from '../components/winmix/MarketFeedbackPanel';
 import { MetricCard, MetricGrid } from '../components/winmix/MetricCard';
 import { ModelStatePanel } from '../components/winmix/ModelStatePanel';
+import { CopyPageButton } from '../components/winmix/CopyPageButton';
 import { PageHeader } from '../components/winmix/PageHeader';
 import { SectionHeading } from '../components/winmix/Panel';
 import { ReliabilityBandTable } from '../components/winmix/ReliabilityBandTable';
@@ -30,6 +31,7 @@ const INTRO =
 '100 meccses gördülő ablakok: Brier Score, LogLoss, Expected Calibration Error (ECE) és Skill vs B1 baseline. Ez a lap kizárólag mérési felület — az újraszámítás, a teljes újraépítés és a beállítások a Pipeline Üzemeltetés képernyőn érhetők el.';
 
 export function PipelineAudit() {
+  const pageRef = useRef<HTMLDivElement>(null);
   const { calibration, currentLeague, settings, seasons, marketFeedback, pipelineRuns } =
   useWinmix();
 
@@ -70,11 +72,12 @@ export function PipelineAudit() {
   );
 
   return (
-    <div className="flex flex-col gap-4 md:gap-5">
+    <div ref={pageRef} className="flex flex-col gap-4 md:gap-5">
       <PageHeader
         icon={Gauge}
         title="L4 értékelési & kalibrációs réteg"
-        intro={INTRO} />
+        intro={INTRO}
+        actions={<CopyPageButton targetRef={pageRef} />} />
       
 
       {/* --- The answer, first --------------------------------------------- */}
@@ -187,7 +190,7 @@ export function PipelineAudit() {
         
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <OutcomeDistributionChart data={outcomeData} hasData={stats.hasPipeline} />
         <ReliabilityDiagram points={reliability} hasData={stats.hasPipeline} />
       </div>

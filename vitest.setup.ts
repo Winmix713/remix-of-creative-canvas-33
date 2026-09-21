@@ -1,12 +1,9 @@
-import "@testing-library/jest-dom";
-import { afterAll, afterEach, beforeAll, vi } from "vitest";
-import { server } from "./src/__tests__/mocks/server";
-
-beforeAll(() => server.listen());
+import "@testing-library/jest-dom/vitest";
+import { afterEach, vi } from "vitest";
+import { cleanup } from "@testing-library/react";
 
 afterEach(() => {
-  server.resetHandlers();
+  cleanup();
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
-
-afterAll(() => server.close());

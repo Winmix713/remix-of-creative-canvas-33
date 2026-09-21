@@ -83,12 +83,13 @@
 
 import { CORE_STABILITY_MIN } from './constants';
 import { CORE_EVIDENCE_RULE_VERSION, coherentLevelOf, evidenceRank } from './coreEvidence';
-import { BTTS_PROFILE_RULE_VERSION } from './bttsProfile';
+import { BTTS_PROFILE_RULE_VERSION, shouldAutoActivateVeto } from './bttsProfile';
 import { MARQUEE_RANKING_ACTIVE } from './marqueePairs';
 import {
   BTTS_DEATHZONE_GATE_ACTIVE,
   evaluateBttsBandHealth,
-  isBttsEligibleForCore } from
+  isBttsEligibleForCore,
+  type CoreCandidateState } from
 './coreEligibility';
 import {
   CUSTOM_BTTS_MIN_RATE,
@@ -138,7 +139,7 @@ import type {
  *        `isBttsEligibleForCore()` (`coreEligibility.ts`) a canonicalCandidates()
  *        ELŐTT fut, gate-first tölcsér. OFF állapotban bitre azonos a 2.4
  *        sorrenddel. */
-export const CORE_SELECTION_RULE_VERSION = 'core-selection/2.5';
+export const CORE_SELECTION_RULE_VERSION = 'core-selection/2.6';
 
 /* -------------------------------------------------------------------------- *
  * PHASE 6 ACTIVATION GATE (Release D)
@@ -385,12 +386,12 @@ kind: 'core' | 'joker')
   if (kind === 'joker') {
     const failed: GateCondition[] = [];
     if (effectiveDecisionOf(pattern) === 'ignore') failed.push('decision');
-    if (level === 'excluded' && PHASE6_MARKET_GATING_ACTIVE) failed.push('band');
+    if (PHASE6_MARKET_GATING_ACTIVE && level === 'excluded') failed.push('band');
     return failed;
   }
 
   const failed = coreQualityFailures(pattern);
-  if (level === 'excluded' && PHASE6_MARKET_GATING_ACTIVE) failed.push('band');
+  if (PHASE6_MARKET_GATING_ACTIVE && level === 'excluded') failed.push('band');
   if (level === 'conditional' && hasMaterialModelConflict(pattern)) failed.push('model_conflict');
   return failed;
 }
@@ -620,10 +621,22 @@ function byTierThenEvidenceThenStrategy(a: PatternHit, b: PatternHit): number {
  * If ablation shows a different order is better, change it HERE; no callsite
  * may reorder these criteria inline.
  */
+/**
+ * ESS-shrunk hit rate for canonical tie-breaking. A 5-match streak at 80%
+ * (ESS ~3) is shrunk harder than an 18-match goal_market at 75% (ESS ~12),
+ * so the more reliable generator wins when raw hitRates are close.
+ */
+function shrunkHitRate(p: PatternHit): number {
+  const shrinkK = 3;
+  const ess = Math.max(0, p.effectiveSampleSize);
+  return (p.hitRate * ess + 0.5 * shrinkK) / (ess + shrinkK);
+}
+
 export function byCanonicalWinner(a: PatternHit, b: PatternHit): number {
   return (
     coreTierRank(coreTierOf(a)) - coreTierRank(coreTierOf(b)) ||
     evidenceRank(evidenceLevelOf(a)) - evidenceRank(evidenceLevelOf(b)) ||
+    shrunkHitRate(b) - shrunkHitRate(a) ||
     b.hitRate - a.hitRate ||
     b.stability - a.stability ||
     b.effectiveSampleSize - a.effectiveSampleSize ||
@@ -821,6 +834,8 @@ export interface CoreCandidateRow {
    * `null`                — not part of a duplicate group.
    */
   canonicalStatus: CanonicalStatus;
+  /** The explicit state-machine state this candidate reached. */
+  candidateState: CoreCandidateState;
 }
 
 
@@ -1119,8 +1134,18 @@ allPatterns: readonly PatternHit[],
 analysedFixtures: number,
 markets: SlipMarketPreferences | null)
 : CoreOutcome {
-  const vetoActive = strategy.vetoMode === 'active';
+  const vetoModeActive = strategy.vetoMode === 'active';
   const flaggedOf = (pattern: PatternHit) => pattern.bttsRisk?.wouldVeto ?? false;
+  const dynamicVetoOf = (pattern: PatternHit) => {
+    if (!spec.profileVeto) return false;
+    if (vetoModeActive) return true;
+    if (!pattern.bttsRisk || !pattern.goalProfile) return false;
+    return shouldAutoActivateVeto({
+      profile: pattern.goalProfile,
+      risk: pattern.bttsRisk
+    }).autoActivate;
+  };
+  const vetoActive = vetoModeActive;
 
   /* --- RAW population: duplicates deliberately kept ---------------------- */
   const rawCandidates = allPatterns.filter((pattern) => spec.codes.includes(pattern.code));
@@ -1146,9 +1171,10 @@ markets: SlipMarketPreferences | null)
   const qualityPassedRaw = bttsPreFiltered.filter(
     (pattern) => coreQualityFailures(pattern).length === 0
   );
-  /* STAGE 2 — megmért és cáfolt saját sáv. Release D-ig a Phase 6 kapu
-     INAKTÍV: a cáfolt verdikt a soron és a trace-ben látszik, és a rangsor
-     (evidenceRank) a végére teszi, de a jelölt nem esik ki. */
+  /* --- STAGE 2 — megmért és cáfolt saját sáv. Phase 6 kapu:
+     PHASE6_MARKET_GATING_ACTIVE === true → a cáfolt sáv terminális kizárás.
+     PHASE6_MARKET_GATING_ACTIVE === false → a cáfolt sáv csak rangsor-büntetés
+     (evidenceRank a kalibrált/feltételes sorok mögé teszi), de nem zár ki. */
   const afterEvidenceRaw = qualityPassedRaw.filter(
     (pattern) => !PHASE6_MARKET_GATING_ACTIVE || evidenceLevelOf(pattern) !== 'excluded'
   );
@@ -1171,7 +1197,10 @@ markets: SlipMarketPreferences | null)
   afterTierRaw.filter((pattern) => !flaggedOf(pattern)) :
   afterTierRaw;
   const afterActiveProfileVetoRaw =
-  spec.profileVeto && vetoActive ? vetoFilteredRaw : afterTierRaw;
+  spec.profileVeto && vetoActive ? vetoFilteredRaw :
+  spec.profileVeto ?
+  afterTierRaw.filter((pattern) => !dynamicVetoOf(pattern)) :
+  afterTierRaw;
 
   /* --- Canonicalise ONLY the gate survivors ------------------------------ */
   const canonicalAudit = auditedCanonicalCandidates(afterActiveProfileVetoRaw);
@@ -1233,9 +1262,17 @@ markets: SlipMarketPreferences | null)
     '(ugyanaz a mérkőzés és piac, másik generátor) — nem kapu-elutasítás.' :
     'Kapun belüli jelölt, de a rangsorban a felvett sorok mögé került, ' +
     'vagy a mérkőzése már szerepel a core oldalon.';
+    const level = evidenceLevelOf(pattern);
+    const candidateState: CoreCandidateState =
+      level === 'excluded' ? 'BLOCKED' :
+      failed.length > 0 ? 'FLAGGED' :
+      slot !== null ? 'CORE_PUBLISHED' :
+      canonicalWinner ? 'CORE_ELIGIBLE' :
+      level === 'calibrated' ? 'CALIBRATED' :
+      'EVIDENCE_ASSESSED';
     return {
       pattern,
-      evidence: evidenceLevelOf(pattern),
+      evidence: level,
       quadrant: effectiveDecisionOf(pattern),
       coreTier: coreTierOf(pattern),
       failed,
@@ -1243,7 +1280,8 @@ markets: SlipMarketPreferences | null)
       reason,
       canonicalWinner,
       mergedInto,
-      canonicalStatus
+      canonicalStatus,
+      candidateState
     };
   }).
   sort(
@@ -1880,14 +1918,19 @@ function lineOf(slot: SlipSlot, pattern: PatternHit): SlipLine {
   };
 }
 
-/** Freeze a draft into a persistable slip, stamped with its rule versions. */
+/** Freeze a draft into a persistable slip, stamped with its rule versions.
+ *  Policy A: BLOCKED candidates (evidenceLevel === 'excluded') must never
+ *  reach the published slip. The slot-assembly funnel already filters on
+ *  `isCoreEligible`, which calls `gateFailuresForKind` — and `excluded`
+ *  evidence now always pushes the `band` gate. This guard is a defensive
+ *  assertion that no BLOCKED record slipped through. */
 export function draftToSlip(
 draft: SlipDraft,
 roundName: string,
 strategy: CoreStrategySettings)
 : Slip {
   const lines = draft.slots.
-  filter((slot) => slot.pattern).
+  filter((slot) => slot.pattern && (!PHASE6_MARKET_GATING_ACTIVE || evidenceLevelOf(slot.pattern as PatternHit) !== 'excluded')).
   map((slot) => lineOf(slot, slot.pattern as PatternHit));
 
   return {

@@ -5,7 +5,9 @@ import { useWinmix } from '../contexts/WinmixContext';
 import { computeAutoTeamWeights, weightDelta } from '../utils/autoWeights';
 import { DEFAULT_WEIGHT } from '../utils/constants';
 import { checkDirectedFixtureMatrix } from '../utils/fixtureMatrix';
-import type { HistoryScope } from '../types/winmix';
+import { fetchCloudSeasonList, fetchCloudSeasonData, type CloudSeasonMeta, type CloudSeasonDownload, type IngestResult } from '../utils/supabaseTier';
+import { syncSeasonsToCloud } from '../utils/cloudSync';
+import type { HistoryScope, League } from '../types/winmix';
 
 type AutoWeightMap = ReturnType<typeof computeAutoTeamWeights>;
 type AutoWeight = AutoWeightMap[string];
@@ -43,13 +45,16 @@ export function useOpsActions() {
   const {
     currentLeague,
     leagueMatches,
+    seasons,
     teamWeights,
+    manualWeightOverrides,
     teamAliasMap,
     setWeight,
     saveWeights,
     settings,
     updateSettings,
-    rebuildFromScratch
+    rebuildFromScratch,
+    importFiles
   } = useWinmix();
   const dialogs = useDialogs();
   const cloud = useCloudTierContext();
@@ -59,11 +64,19 @@ export function useOpsActions() {
    * pre-apply weights are snapshotted here so "Visszaállítás" restores the
    * operator's hand-tuned values exactly, including their provenance.
    */
-  const [preApplySnapshot, setPreApplySnapshot] = useState<Record<string, number> | null>(null);
+  const [preApplySnapshot, setPreApplySnapshot] = useState<{
+    weights: Record<string, number>;
+    overrides: Record<string, number>;
+  } | null>(null);
   const [autoAppliedKeys, setAutoAppliedKeys] = useState<Set<string>>(() => new Set());
+  const [ingesting, setIngesting] = useState(false);
+  const [ingestResult, setIngestResult] = useState<IngestResult | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadResult, setDownloadResult] = useState<{ seasons: number; matches: number; failures: string[] } | null>(null);
 
   const aliases = teamAliasMap[currentLeague] ?? {};
   const activeWeights = teamWeights[currentLeague] ?? {};
+  const activeOverrides = manualWeightOverrides[currentLeague] ?? {};
 
   const auto = useMemo(
     () => computeAutoTeamWeights(leagueMatches, currentLeague),
@@ -87,11 +100,11 @@ export function useOpsActions() {
         current,
         rec,
         delta: rec ? weightDelta(current, rec.recommendedWeight) : 0,
-        auto: autoAppliedKeys.has(key)
+        auto: autoAppliedKeys.has(key) || activeOverrides[key] === undefined
       };
     }).
     sort((a, b) => a.displayName.localeCompare(b.displayName, 'hu')),
-    [aliases, activeWeights, auto, autoAppliedKeys]
+    [aliases, activeWeights, activeOverrides, auto, autoAppliedKeys]
   );
 
   const applyAutoWeights = useCallback(async () => {
@@ -109,9 +122,9 @@ export function useOpsActions() {
     );
     if (!ok) return;
 
-    setPreApplySnapshot({ ...activeWeights });
+    setPreApplySnapshot({ weights: { ...activeWeights }, overrides: { ...activeOverrides } });
     affected.forEach((r) => {
-      if (r.rec) setWeight(currentLeague, r.key, r.rec.recommendedWeight);
+      if (r.rec) setWeight(currentLeague, r.key, r.rec.recommendedWeight, 'automatic');
     });
     setAutoAppliedKeys(new Set(affected.map((r) => r.key)));
     await saveWeights();
@@ -124,7 +137,12 @@ export function useOpsActions() {
     );
     if (!ok) return;
     Object.keys(aliases).forEach((key) => {
-      setWeight(currentLeague, key, preApplySnapshot[key] ?? DEFAULT_WEIGHT);
+      setWeight(
+        currentLeague,
+        key,
+        preApplySnapshot.weights[key] ?? DEFAULT_WEIGHT,
+        preApplySnapshot.overrides[key] === undefined ? 'automatic' : 'manual'
+      );
     });
     setPreApplySnapshot(null);
     setAutoAppliedKeys(new Set());
@@ -174,6 +192,94 @@ export function useOpsActions() {
     sort((a, b) => a.displayName.localeCompare(b.displayName, 'hu'));
   }, [cloud.ratings, auto]);
 
+  const ingestToCloud = useCallback(async () => {
+    if (seasons.length === 0) {
+      await dialogs.alert('Nincsenek betöltött szezonok a feltöltéshez.');
+      return;
+    }
+    const ok = await dialogs.confirm(
+      `${seasons.length} szezon adatai feltöltése a felhő adatbázisba? ` +
+      `A művelet idempotens — a már létező szezonok biztonságosan frissítve lesznek.`
+    );
+    if (!ok) return;
+
+    setIngesting(true);
+    setIngestResult(null);
+    try {
+      const result = await syncSeasonsToCloud(seasons, teamWeights, teamAliasMap);
+      setIngestResult(result);
+      if (result.success) {
+        await cloud.loadRatings(currentLeague);
+      }
+    } finally {
+      setIngesting(false);
+    }
+  }, [seasons, teamWeights, teamAliasMap, dialogs, cloud, currentLeague]);
+
+  const downloadFromCloud = useCallback(async (league: League) => {
+    if (!cloud.configured || cloud.health.degraded) {
+      await dialogs.alert('A felhő tier nem elérhető. Ellenőrizd a kapcsolatot a Cloud tier panelen.');
+      return;
+    }
+    const ok = await dialogs.confirm(
+      `Szezonok letöltése a felhőből (${league} liga). A letöltött CSV-k a szokásos import úton mennek keresztül — parse, dedup, pipeline újraszámítás. Folytatod?`
+    );
+    if (!ok) return;
+
+    setDownloading(true);
+    setDownloadResult(null);
+    try {
+      const seasonList = await fetchCloudSeasonList(league);
+      if (seasonList.length === 0) {
+        await dialogs.alert(`Nincsenek ${league} szezonok a felhőben.`);
+        return;
+      }
+
+      const DOWNLOAD_CONCURRENCY = 6;
+      const downloads: (CloudSeasonDownload | null)[] = new Array(seasonList.length).fill(null);
+      const dlFailures: string[] = [];
+      let dlCursor = 0;
+      const dlWorker = async () => {
+        while (dlCursor < seasonList.length) {
+          const idx = dlCursor;
+          dlCursor += 1;
+          try {
+            downloads[idx] = await fetchCloudSeasonData(seasonList[idx]);
+          } catch (e) {
+            dlFailures.push(
+              `${seasonList[idx].fileName} (${e instanceof Error ? e.message : String(e)})`
+            );
+          }
+        }
+      };
+      await Promise.all(
+        Array.from(
+          { length: Math.min(DOWNLOAD_CONCURRENCY, seasonList.length) },
+          () => dlWorker()
+        )
+      );
+
+      const valid = downloads.filter((d): d is CloudSeasonDownload => d !== null);
+      const files = valid.map((d) => {
+        const csv = d.csvText;
+        return new File([csv], d.meta.fileName, { type: 'text/csv' });
+      });
+
+      const totalMatches = valid.reduce((sum, d) => sum + d.meta.matchCount, 0);
+      setDownloadResult({ seasons: valid.length, matches: totalMatches, failures: dlFailures });
+
+      await importFiles(files, league, 'auto');
+    } catch (e) {
+      setDownloadResult({
+        seasons: 0,
+        matches: 0,
+        failures: [e instanceof Error ? e.message : String(e)],
+      });
+    } finally {
+      setDownloading(false);
+    }
+  }, [cloud, dialogs, importFiles]);
+
   return {
     auto,
     rows,
@@ -185,6 +291,12 @@ export function useOpsActions() {
     changeHistoryScope,
     fullRebuild,
     saveWeights,
-    setWeight
+    setWeight,
+    ingestToCloud,
+    ingesting,
+    ingestResult,
+    downloadFromCloud,
+    downloading,
+    downloadResult
   };
 }

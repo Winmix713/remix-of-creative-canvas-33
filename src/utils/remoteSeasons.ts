@@ -46,9 +46,11 @@ export interface RemoteFetchResult {
  * visszatérnek, a hiányzók pedig felsorolva a `failures`-ben — így egy-egy
  * elérhetetlen szezon nem akadályozza a többi betöltését.
  */
+const seasonTextCache = new Map<string, string>();
+
 export async function fetchRemoteSeasonFiles(
 onProgress?: (done: number, total: number) => void,
-concurrency = 6)
+concurrency = 10)
 : Promise<RemoteFetchResult> {
   const sources = REMOTE_SEASON_SOURCES;
   const total = sources.length;
@@ -63,16 +65,22 @@ concurrency = 6)
       cursor += 1;
       const source = sources[index];
       try {
-        const response = await fetch(source.url, { cache: 'no-store' });
-        if (!response.ok) {
-          failures.push(`${source.fileName} (HTTP ${response.status})`);
-        } else {
-          const text = await response.text();
-          if (text.trim().length === 0) {
-            failures.push(`${source.fileName} (üres fájl)`);
+        let text = seasonTextCache.get(source.url);
+        if (text === undefined) {
+          const response = await fetch(source.url);
+          if (!response.ok) {
+            failures.push(`${source.fileName} (HTTP ${response.status})`);
           } else {
-            slots[index] = new File([text], source.fileName, { type: 'text/csv' });
+            text = await response.text();
+            if (text.trim().length === 0) {
+              failures.push(`${source.fileName} (üres fájl)`);
+            } else {
+              seasonTextCache.set(source.url, text);
+              slots[index] = new File([text], source.fileName, { type: 'text/csv' });
+            }
           }
+        } else {
+          slots[index] = new File([text], source.fileName, { type: 'text/csv' });
         }
       } catch (error) {
         failures.push(

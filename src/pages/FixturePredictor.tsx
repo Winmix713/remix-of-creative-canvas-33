@@ -40,6 +40,8 @@ import { RoundBuilder } from '../components/winmix/RoundBuilder';
 import { SlipPanel } from '../components/winmix/SlipPanel';
 import { PatternConfidenceSummary } from '../components/winmix/PatternConfidenceSummary';
 import { EmptyCoreReasons } from '../components/winmix/EmptyCoreReasons';
+import { ProductionGatesPanel } from '../components/winmix/ProductionGatesPanel';
+import { ZeroCoreNotice } from '../components/winmix/ZeroCoreNotice';
 import { MobileSlipBar } from '../components/winmix/MobileSlipBar';
 
 const INTRO =
@@ -245,7 +247,15 @@ export function FixturePredictor() {
       {noData ?
       <StateEmptyPanel
         title="Nincs betöltött adat"
-        message="A prediktor a betöltött szezonok csapataiból és H2H előzményeiből dolgozik. Töltsd fel a szezon CSV-ket a Taktikai Stúdióban, utána itt összeállítható a forduló." /> :
+        message="A prediktor a betöltött szezonok csapataiból és H2H előzményeiből dolgozik. Töltsd fel a szezon CSV-ket a Taktikai Stúdióban, utána itt összeállítható a forduló."
+        action={
+          <a
+            href="?mp_screen=dashboard"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-1 px-3 py-1.5 text-ui-xs font-medium text-foreground transition-colors hover:bg-elevated">
+            <Target className="h-3.5 w-3.5" aria-hidden={true} />
+            Taktikai Stúdió megnyitása
+          </a>
+        } /> :
 
       null}
 
@@ -315,7 +325,7 @@ export function FixturePredictor() {
             </StateNotice> :
           null}
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {LEAGUES.map((league) =>
             <RoundBuilder
               key={league}
@@ -336,7 +346,7 @@ export function FixturePredictor() {
            The slip is pinned on wide screens: previously it sat above a long
            list of fixture cards, so comparing a card against the current
            selection meant scrolling back and forth. */}
-      <div className="grid min-w-0 grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_460px]">
+      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
         <div className="flex min-w-0 flex-col gap-4">
           <CoreStrategySelector
             value={strategy}
@@ -349,6 +359,12 @@ export function FixturePredictor() {
             readout={draft?.strategy ?? null}
             auditedMatches={auditCoverage.audited}
             totalMatches={auditCoverage.total} />
+          
+          <ProductionGatesPanel />
+
+          <ZeroCoreNotice draft={draft} />
+
+
           
 
           {/* The full derivation behind the three cards: funnel, gate chain,
@@ -380,7 +396,7 @@ export function FixturePredictor() {
               <h2 className="text-ui-base font-medium tracking-tight text-foreground">
                 Mérkőzéskártyák és minták ({analyses.length})
               </h2>
-              <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2">
+              <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
                 {analyses.map((analysis) =>
               <FixtureCard key={analysis.fixtureId} analysis={analysis} />
               )}
@@ -390,7 +406,7 @@ export function FixturePredictor() {
         </div>
 
         {draft ?
-        <div className="order-first min-w-0 2xl:order-none 2xl:sticky 2xl:top-0 2xl:self-start">
+        <div className="order-first min-w-0 xl:order-none xl:sticky xl:top-0 xl:self-start">
             <SlipPanel
             draft={draft}
             combinedProb={combined}

@@ -1,1 +1,7 @@
-project_id = "oaadhaapbgzyibyadgdh"
+project_id = "yvwnchyedxkajtwwkkqd"
+
+[functions.winmix-ingest]
+verify_jwt = true
+
+[functions.winmix-engine]
+verify_jwt = true

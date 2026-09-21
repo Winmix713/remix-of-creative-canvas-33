@@ -1124,9 +1124,9 @@ export const MARKET_CONFIDENCE_SATURATION = 15;
 export const MARKET_CONFIDENCE_TOLERANCE = 0.3;
 /** The three exponents of the geometric blend. */
 export const MARKET_CONFIDENCE_EXPONENTS = {
-  sharpness: 0.5,
-  sufficiency: 0.3,
-  agreement: 0.2
+  sharpness: 0.45,
+  sufficiency: 0.40,
+  agreement: 0.15
 } as const;
 /** Output clamp of the market confidence score. */
 export const MARKET_CONFIDENCE_CLAMP = { min: 12, max: 99 } as const;

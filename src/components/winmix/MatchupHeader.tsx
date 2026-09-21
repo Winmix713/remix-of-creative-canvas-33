@@ -3,6 +3,7 @@ import { cn } from '../../lib/utils';
 import type { FormResult, MatchupSummary } from '../../utils/h2h';
 import { Panel } from './Panel';
 import { TeamBadge } from './DataTable';
+import { Chip } from './Panel';
 import { MARQUEE_LEVEL_LABEL, marqueeSummaryText } from '../../utils/marqueePairs';
 import type { MarqueeRiskVerdict } from '../../types/winmix';
 
@@ -61,7 +62,7 @@ export function MatchupHeader({
   return (
     <Panel className="gap-4 px-3 py-4 sm:px-5 sm:py-5">
       {/* --- The two sides ------------------------------------------------ */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
+      <div className="grid grid-cols-1 items-center gap-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <TeamBadge name={summary.aDisplay} className="h-8 w-8 sm:h-10 sm:w-10" />
           <div className="min-w-0">
@@ -69,14 +70,12 @@ export function MatchupHeader({
             <p className="font-mono text-ui-2xs uppercase tracking-label text-muted-foreground">
               {aWins} győzelem
             </p>
-            <p className="mt-1 font-mono text-ui-2xs font-bold tabular-nums text-signal">
-              Javasolt súly: {formatRecommendedWeight(homeRecommendedWeight)}
-            </p>
+            <Chip tone="signal" className="mt-1">Súly: {formatRecommendedWeight(homeRecommendedWeight)}</Chip>
           </div>
         </div>
 
         <div className="shrink-0 text-center">
-          <p className="font-mono text-data-lg font-bold tabular-nums text-foreground">
+          <p className="font-mono text-data-xl font-bold tabular-nums text-foreground">
             {aWins}
             <span className="mx-1 text-muted-foreground">–</span>
             {draws}
@@ -88,24 +87,22 @@ export function MatchupHeader({
           </p>
         </div>
 
-        <div className="flex min-w-0 items-center justify-end gap-2 text-right sm:gap-3">
-          <div className="min-w-0">
+        <div className="flex min-w-0 items-center justify-start gap-2 text-left sm:justify-end sm:text-right sm:gap-3">
+          <TeamBadge name={summary.bDisplay} className="h-8 w-8 order-2 sm:order-1 sm:h-10 sm:w-10" />
+          <div className="min-w-0 order-1 sm:order-2">
             <p className="truncate text-ui-base font-bold text-foreground">{summary.bDisplay}</p>
             <p className="font-mono text-ui-2xs uppercase tracking-label text-muted-foreground">
               {bWins} győzelem
             </p>
-            <p className="mt-1 font-mono text-ui-2xs font-bold tabular-nums text-signal">
-              Javasolt súly: {formatRecommendedWeight(awayRecommendedWeight)}
-            </p>
+            <Chip tone="signal" className="mt-1">Súly: {formatRecommendedWeight(awayRecommendedWeight)}</Chip>
           </div>
-          <TeamBadge name={summary.bDisplay} className="h-8 w-8 sm:h-10 sm:w-10" />
         </div>
       </div>
 
       {/* --- The balance bar ---------------------------------------------- */}
       <div>
         <div
-          className="flex h-2.5 w-full overflow-hidden rounded-full bg-elevated"
+          className="flex h-3 w-full overflow-hidden rounded-full bg-elevated"
           role="img"
           aria-label={`Mérleg: ${summary.aDisplay} ${aWins} győzelem, ${draws} döntetlen, ${summary.bDisplay} ${bWins} győzelem`}>
           

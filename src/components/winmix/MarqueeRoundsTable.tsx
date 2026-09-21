@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Star } from 'lucide-react';
 import { Panel, PanelHeader, PanelTitle } from './Panel';
 import { EmptyRow, Table, TableScroll, Td, TdLabel, Th, Tr } from './DataTable';
 import { marqueeHistoryRows } from '../../utils/marqueePairs';
@@ -46,7 +47,10 @@ export function MarqueeRoundsTable({
           <tbody>
             {rows.length === 0 ?
             <EmptyRow colSpan={4}>
-                Még egyetlen körben sincs rangadóként megjelölt párosítás.
+                <span className="flex flex-col items-center gap-2">
+                  <Star className="h-5 w-5 text-muted-foreground/50" aria-hidden={true} />
+                  <span>Még egyetlen körben sincs rangadóként megjelölt párosítás.</span>
+                </span>
               </EmptyRow> :
 
             rows.map((row) =>

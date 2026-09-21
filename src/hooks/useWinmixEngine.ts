@@ -49,6 +49,8 @@ import {
   savePersistedState } from
 '../utils/storage';
 import { canon } from '../utils/teams';
+import { isCloudTierConfigured } from '../utils/supabaseTier';
+import { syncSeasonsToCloud } from '../utils/cloudSync';
 import type {
   AliasMap,
   CalibrationMap,
@@ -96,6 +98,7 @@ interface DomainState {
   seasonCounters: SeasonCounters;
   calibration: CalibrationMap;
   settings: WinmixSettings;
+  manualWeightOverrides: WeightMap;
   round: FixtureRound;
   slips: Slip[];
 }
@@ -168,6 +171,7 @@ function initialDomainState(): DomainState {
     seasonCounters: emptyCounters(),
     calibration: emptyCalibration(),
     settings: { ...DEFAULT_SETTINGS, slipMarkets: defaultSlipMarkets() },
+    manualWeightOverrides: emptyWeights(),
     round: emptyRound(),
     slips: []
   };
@@ -181,6 +185,7 @@ function toPersistedSlice(state: DomainState): PersistedSlice {
     seasonCounters,
     calibration,
     settings,
+    manualWeightOverrides,
     round,
     slips
   } = state;
@@ -191,6 +196,7 @@ function toPersistedSlice(state: DomainState): PersistedSlice {
     seasonCounters,
     calibration,
     settings,
+    manualWeightOverrides,
     round,
     slips
   };
@@ -222,7 +228,7 @@ source: Partial<Record<League, Record<string, V>>>)
   return out;
 }
 
-/** Applies the system recommendation to every team in each freshly touched league. */
+/** Refreshes only weights that have never been explicitly overridden. */
 function applyRecommendedTeamWeights(
 snapshot: DomainState,
 leagues: readonly League[])
@@ -236,7 +242,9 @@ leagues: readonly League[])
     const recommendations = computeAutoTeamWeights(matches, league);
 
     for (const [key, recommendation] of Object.entries(recommendations)) {
-      teamWeights[league][key] = recommendation.recommendedWeight;
+      if (snapshot.manualWeightOverrides[league]?.[key] === undefined) {
+        teamWeights[league][key] = recommendation.recommendedWeight;
+      }
     }
   }
 
@@ -508,7 +516,11 @@ export function useWinmixEngine() {
   const [state, setState] = useState<DomainState>(initialDomainState);
   const stateRef = useRef(state);
 
-  const [storageBackend, setStorageBackend] = useState<StorageBackend>('local');
+  const storageBackendRef = useRef<StorageBackend>(detectStorageBackend());
+  const [storageBackend] = useState<StorageBackend>(storageBackendRef.current);
+  /** Weight edits are drafts until their pipeline succeeds. */
+  const weightDraftRef = useRef<{weights: WeightMap;manualOverrides: WeightMap;} | null>(null);
+  const [weightDraftVersion, setWeightDraftVersion] = useState(0);
   const [diagnostics, setDiagnostics] = useState<DiagnosticEntry[]>([]);
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [isComputing, setIsComputing] = useState(false);
@@ -584,7 +596,7 @@ export function useWinmixEngine() {
   const persist = useCallback(
     (snapshot: DomainState) => {
       const result = savePersistedState(
-        storageBackend,
+        storageBackendRef.current,
         toPersistedSlice(snapshot)
       );
       if (result.error) {
@@ -600,7 +612,7 @@ export function useWinmixEngine() {
         null
       );
     },
-    [logDiagnostic, storageBackend]
+    [logDiagnostic]
   );
 
   /**
@@ -683,29 +695,33 @@ export function useWinmixEngine() {
     options?: {forceFullRebuild?: boolean;})
     : Promise<DomainState> => {
       const forceFullRebuild = options?.forceFullRebuild === true;
-      let working = snapshot;
       const calibration: CalibrationMap = { ...snapshot.calibration };
       const runs: Partial<Record<League, PipelineRunInfo>> = {};
       const span = 100 / Math.max(leagues.length, 1);
 
-      for (let index = 0; index < leagues.length; index++) {
-        const league = leagues[index];
-        const base = index * span;
-        const result = await runLeaguePipeline({
-          seasons: working.seasons,
-          league,
-          weights: working.teamWeights[league] ?? {},
-          historyScope: working.settings.historyScope,
-          experiments: working.settings.experiments,
-          checkpoint: forceFullRebuild ? null : readCheckpoint(league),
-          forceFullRebuild,
-          onProgress: (done, total) => {
-            report({
-              label: `${labelPrefix} (${league})… ${done}/${total}`,
-              pct: base + pct(done, total) * span / 100
-            });
-          }
-        });
+      const results = await Promise.all(
+        leagues.map((league, index) => {
+          const base = index * span;
+          return runLeaguePipeline({
+            seasons: snapshot.seasons,
+            league,
+            weights: snapshot.teamWeights[league] ?? {},
+            historyScope: snapshot.settings.historyScope,
+            experiments: snapshot.settings.experiments,
+            checkpoint: forceFullRebuild ? null : readCheckpoint(league),
+            forceFullRebuild,
+            onProgress: (done, total) => {
+              report({
+                label: `${labelPrefix} (${league})… ${done}/${total}`,
+                pct: base + pct(done, total) * span / 100
+              });
+            }
+          }).then((result) => ({ league, result, base }));
+        })
+      );
+
+      let working = snapshot;
+      for (const { league, result, base: _base } of results) {
         working = { ...working, seasons: result.seasons };
         calibration[league] = result.calibration;
 
@@ -838,8 +854,7 @@ export function useWinmixEngine() {
   /* --------- Boot: restore state, then backfill missing pipeline -------- */
 
   useEffect(() => {
-    const backend = detectStorageBackend();
-    setStorageBackend(backend);
+      const backend = storageBackendRef.current;
 
     let cancelled = false;
 
@@ -1035,6 +1050,8 @@ export function useWinmixEngine() {
             if (isStale(runId)) return;
           }
 
+          weightDraftRef.current = null;
+          setWeightDraftVersion((version) => version + 1);
           persist(commit(working));
           setUploadResult({ added: ingest.added, warnings: ingest.warnings });
           for (const w of ingest.warnings) {
@@ -1043,6 +1060,33 @@ export function useWinmixEngine() {
 
           if (ingest.added > 0) {
             toast.success(`${ingest.added} új bajnokság rögzítve!`);
+            // Auto-sync to Supabase if the cloud tier is configured — silent,
+            // non-blocking, failure only logs a diagnostic entry.
+            if (isCloudTierConfigured()) {
+              void (async () => {
+                try {
+                  const result = await syncSeasonsToCloud(
+                    working.seasons, working.teamWeights, working.teamAliasMap
+                  );
+                  if (result.success) {
+                    logDiagnostic(
+                      'info',
+                      `Felhő szinkron: ${result.seasons} szezon, ${result.teams} csapat, ${result.matches} mérkőzés feltöltve.`
+                    );
+                  } else {
+                    logDiagnostic(
+                      'warn',
+                      `Felhő szinkron sikertelen: ${result.errors.join('; ')}`
+                    );
+                  }
+                } catch (e) {
+                  logDiagnostic(
+                    'warn',
+                    `Felhő szinkron hiba: ${e instanceof Error ? e.message : String(e)}`
+                  );
+                }
+              })();
+            }
           } else {
             toast.error(
               'Egyetlen fájl sem került rögzítésre — nézd meg a figyelmeztetéseket.'
@@ -1135,12 +1179,15 @@ export function useWinmixEngine() {
       seasons: [],
       selectedSeasonId: null,
       teamWeights: emptyWeights(),
+      manualWeightOverrides: emptyWeights(),
       teamAliasMap: emptyAliases(),
       seasonCounters: emptyCounters(),
       calibration: emptyCalibration(),
       round: emptyRound(),
       slips: []
     });
+    weightDraftRef.current = null;
+    setWeightDraftVersion((version) => version + 1);
     flushPersist();
     persist(committed);
     clearCheckpoints();
@@ -1150,25 +1197,41 @@ export function useWinmixEngine() {
   }, [commit, dialogs, flushPersist, persist]);
 
   const setWeight = useCallback(
-    (league: League, key: string, value: number) => {
-      const { teamWeights } = stateRef.current;
-      commit({
-        teamWeights: {
-          ...teamWeights,
-          [league]: { ...teamWeights[league], [key]: value }
-        }
-      });
+    (league: League, key: string, value: number, source: 'manual' | 'automatic' = 'manual') => {
+      const current = weightDraftRef.current ?? {
+        weights: stateRef.current.teamWeights,
+        manualOverrides: stateRef.current.manualWeightOverrides
+      };
+      const weights = cloneLeagueRecord<number>(current.weights);
+      const manualOverrides = cloneLeagueRecord<number>(current.manualOverrides);
+      weights[league][key] = value;
+      if (source === 'manual') manualOverrides[league][key] = value;
+      else delete manualOverrides[league][key];
+      weightDraftRef.current = { weights, manualOverrides };
+      setWeightDraftVersion((version) => version + 1);
     },
-    [commit]
+    []
   );
 
   const saveWeights = useCallback(async () => {
-    persist(stateRef.current);
-    await recompute(
-      [stateRef.current.currentLeague],
-      'Csapat súlyok rögzítve és predikciók újraszámolva!'
-    );
-  }, [persist, recompute]);
+    const draft = weightDraftRef.current;
+    if (!draft) return;
+    await withPipelineLock(async (runId) => {
+      const snapshot = { ...stateRef.current, teamWeights: draft.weights, manualWeightOverrides: draft.manualOverrides };
+      report({ label: 'Súlyok alkalmazása és újraszámítása…', pct: 0 }, true);
+      try {
+        const next = await runPipelineForLeagues([snapshot.currentLeague], snapshot, 'Súlyok alkalmazása');
+        if (isStale(runId)) return;
+        weightDraftRef.current = null;
+        setWeightDraftVersion((version) => version + 1);
+        persist(commit(next));
+        toast.success('Csapat súlyok rögzítve és predikciók újraszámolva!');
+      } catch (e) {
+        logDiagnostic('error', `Súlymentés hiba: ${errorMessage(e)}`);
+        toast.error('A súlyok nem kerültek mentésre; a szerkesztett értékek megmaradtak.');
+      }
+    });
+  }, [commit, isStale, logDiagnostic, persist, report, runPipelineForLeagues, withPipelineLock]);
 
   const updateSettings = useCallback(
     async (patch: Partial<WinmixSettings>) => {
@@ -1184,21 +1247,27 @@ export function useWinmixEngine() {
           'pipeline-t. Folytatod?'
         );
         if (!ok) return;
-        commit({ settings: { ...current, ...patch } });
-        await recompute(
-          LEAGUES,
-          `Előzmény-hatókör: ${
-          patch.historyScope === 'season-only' ?
-          'csak szezonon belüli' :
-          'liga-szintű kumulatív'}.`
-
-        );
+        await withPipelineLock(async (runId) => {
+          const snapshot = { ...stateRef.current, settings: { ...current, ...patch } };
+          report({ label: 'Előzmény-hatókör alkalmazása és teljes újraépítés…', pct: 0 }, true);
+          try {
+            const next = await runPipelineForLeagues(
+              LEAGUES, snapshot, 'Előzmény-hatókör újraépítés', { forceFullRebuild: true }
+            );
+            if (isStale(runId)) return;
+            persist(commit(next));
+            toast.success(`Előzmény-hatókör: ${patch.historyScope === 'season-only' ? 'csak szezonon belüli' : 'liga-szintű kumulatív'}.`);
+          } catch (e) {
+            logDiagnostic('error', `Előzmény-hatókör mentési hiba: ${errorMessage(e)}`);
+            toast.error('A beállítás nem került mentésre, mert az újraszámítás sikertelen volt.');
+          }
+        });
         return;
       }
 
       persist(commit({ settings: { ...current, ...patch } }));
     },
-    [commit, dialogs, persist, recompute]
+    [commit, dialogs, isStale, logDiagnostic, persist, report, runPipelineForLeagues, withPipelineLock]
   );
 
   /* -------------------------- Export / Import -------------------------- */
@@ -1217,6 +1286,7 @@ export function useWinmixEngine() {
       settings: snapshot.settings,
       calibration: snapshot.calibration,
       teamWeights: snapshot.teamWeights,
+      manualWeightOverrides: snapshot.manualWeightOverrides,
       teamAliasMap: snapshot.teamAliasMap,
       seasonCounters: snapshot.seasonCounters,
       seasons: snapshot.seasons
@@ -1343,6 +1413,7 @@ export function useWinmixEngine() {
               {
                 seasons: snapshot.seasons,
                 teamWeights: snapshot.teamWeights,
+                manualWeightOverrides: snapshot.manualWeightOverrides,
                 teamAliasMap: snapshot.teamAliasMap,
                 seasonCounters: snapshot.seasonCounters,
                 calibration: snapshot.calibration,
@@ -1359,6 +1430,7 @@ export function useWinmixEngine() {
             ...snapshot,
             seasons: slices.seasons,
             teamWeights: slices.teamWeights,
+            manualWeightOverrides: slices.manualWeightOverrides,
             teamAliasMap: slices.teamAliasMap,
             seasonCounters: slices.seasonCounters,
             calibration: slices.calibration,
@@ -1375,6 +1447,8 @@ export function useWinmixEngine() {
           );
           if (isStale(runId)) return;
 
+          weightDraftRef.current = null;
+          setWeightDraftVersion((version) => version + 1);
           persist(commit(working));
           if (mountedRef.current) setImportPreview(null);
 
@@ -1630,7 +1704,8 @@ export function useWinmixEngine() {
       seasons: state.seasons,
       currentLeague: state.currentLeague,
       selectedSeasonId: state.selectedSeasonId,
-      teamWeights: state.teamWeights,
+       teamWeights: weightDraftRef.current?.weights ?? state.teamWeights,
+       manualWeightOverrides: weightDraftRef.current?.manualOverrides ?? state.manualWeightOverrides,
       teamAliasMap: state.teamAliasMap,
       seasonCounters: state.seasonCounters,
       calibration: state.calibration,
@@ -1690,6 +1765,7 @@ export function useWinmixEngine() {
     }),
     [
     state,
+    weightDraftVersion,
     leagueSeasons,
     leagueMatches,
     selectedSeason,

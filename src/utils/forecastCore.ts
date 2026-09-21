@@ -62,7 +62,7 @@ import type {
 // ─── Model version ────────────────────────────────────────────────────────────
 
 /** Bump whenever the math changes, so audit records can be attributed to a model. */
-export const FORECAST_MODEL_VERSION = 'winmix-forecast-3.1.0';
+export const FORECAST_MODEL_VERSION = 'winmix-forecast-3.1.1';
 
 // ─── Tunable constants ────────────────────────────────────────────────────────
 
@@ -169,6 +169,85 @@ export interface LeagueGoalsPerMatch {
   readonly away: number;
 }
 
+/**
+ * High-performance chronological history index.
+ *
+ * This is an optimization layer only. It does not change feature definitions,
+ * ordering, or as-of semantics. Existing callers remain fully compatible:
+ * when `historyIndex` is omitted, the scan-based fallback is used.
+ */
+export interface ForecastHistoryIndex {
+  readonly entries: readonly ForecastHistoryEntry[];
+  readonly byTeam: ReadonlyMap<string, readonly ForecastHistoryEntry[]>;
+  readonly homeByTeam: ReadonlyMap<string, readonly ForecastHistoryEntry[]>;
+  readonly awayByTeam: ReadonlyMap<string, readonly ForecastHistoryEntry[]>;
+  readonly h2hByPair: ReadonlyMap<string, readonly ForecastHistoryEntry[]>;
+  readonly positionOf: ReadonlyMap<ForecastHistoryEntry, number>;
+}
+
+function h2hKeyOf(homeKey: string, awayKey: string): string {
+  return homeKey < awayKey
+    ? `${homeKey}\u0000${awayKey}`
+    : `${awayKey}\u0000${homeKey}`;
+}
+
+/**
+ * Build once for an as-of history prefix and reuse for every fixture in it.
+ * `entries` must already be in the pipeline's chronological order.
+ */
+export function buildForecastHistoryIndex(
+  entries: readonly ForecastHistoryEntry[],
+): ForecastHistoryIndex {
+  const byTeam = new Map<string, ForecastHistoryEntry[]>();
+  const homeByTeam = new Map<string, ForecastHistoryEntry[]>();
+  const awayByTeam = new Map<string, ForecastHistoryEntry[]>();
+  const h2hByPair = new Map<string, ForecastHistoryEntry[]>();
+  const positionOf = new Map<ForecastHistoryEntry, number>();
+
+  const push = (
+    map: Map<string, ForecastHistoryEntry[]>,
+    key: string,
+    entry: ForecastHistoryEntry,
+  ) => {
+    const list = map.get(key);
+    if (list) list.push(entry);
+    else map.set(key, [entry]);
+  };
+
+  for (let position = 0; position < entries.length; position++) {
+    const entry = entries[position];
+    positionOf.set(entry, position);
+    push(byTeam, entry.homeKey, entry);
+    push(byTeam, entry.awayKey, entry);
+    push(homeByTeam, entry.homeKey, entry);
+    push(awayByTeam, entry.awayKey, entry);
+    push(h2hByPair, h2hKeyOf(entry.homeKey, entry.awayKey), entry);
+  }
+
+  return Object.freeze({
+    entries,
+    byTeam,
+    homeByTeam,
+    awayByTeam,
+    h2hByPair,
+    positionOf,
+  });
+}
+
+function teamHistory(
+  entries: readonly ForecastHistoryEntry[],
+  index: ForecastHistoryIndex | undefined,
+  key: string,
+): readonly ForecastHistoryEntry[] {
+  if (index) return index.byTeam.get(key) ?? [];
+
+  const result: ForecastHistoryEntry[] = [];
+  for (const entry of entries) {
+    if (entry.homeKey === key || entry.awayKey === key) result.push(entry);
+  }
+  return result;
+}
+
 /** Fallback form when a team has no history in the current slice. */
 export function emptyForm(): TeamForm {
   return {
@@ -179,9 +258,12 @@ export function emptyForm(): TeamForm {
 
 /** How many matches in `entries` involve `key` (home OR away). */
 export function playedCount(
-entries: readonly ForecastHistoryEntry[],
-key: string)
-: number {
+  entries: readonly ForecastHistoryEntry[],
+  key: string,
+  index?: ForecastHistoryIndex,
+): number {
+  if (index) return index.byTeam.get(key)?.length ?? 0;
+
   let n = 0;
   for (const e of entries) {
     if (e.homeKey === key || e.awayKey === key) n++;
@@ -224,28 +306,32 @@ entries: readonly ForecastHistoryEntry[])
  * `teamKey`. Returns `emptyForm()` when the team has no history.
  */
 export function formOf(
-entries: readonly ForecastHistoryEntry[],
-teamKey: string,
-window = FORECAST_MODEL.fallback.formWindow)
-: TeamForm {
-  const tail: ForecastHistoryEntry[] = [];
-  for (const e of entries) {
-    if (e.homeKey === teamKey || e.awayKey === teamKey) tail.push(e);
-  }
-  const slice = tail.slice(-window);
-  if (slice.length === 0) return emptyForm();
+  entries: readonly ForecastHistoryEntry[],
+  teamKey: string,
+  window = FORECAST_MODEL.fallback.formWindow,
+  index?: ForecastHistoryIndex,
+): TeamForm {
+  const history = teamHistory(entries, index, teamKey);
+  const start = Math.max(0, history.length - window);
+
+  if (start === history.length) return emptyForm();
 
   let pts = 0;
   let gd = 0;
-  for (const e of slice) {
+
+  for (let i = start; i < history.length; i++) {
+    const e = history[i];
     const isHome = e.homeKey === teamKey;
     const scored = isHome ? e.match.home_score : e.match.away_score;
     const conceded = isHome ? e.match.away_score : e.match.home_score;
+
     gd += scored - conceded;
-    if (scored > conceded) pts += 3;else
-    if (scored === conceded) pts += 1;
+    if (scored > conceded) pts += 3;
+    else if (scored === conceded) pts += 1;
   }
-  return { ppg: pts / slice.length, gdAvg: gd / slice.length };
+
+  const count = history.length - start;
+  return { ppg: pts / count, gdAvg: gd / count };
 }
 
 /**
@@ -254,29 +340,34 @@ window = FORECAST_MODEL.fallback.formWindow)
  * is below `minH2HMeetings`.
  */
 export function h2hHomePpgOf(
-entries: readonly ForecastHistoryEntry[],
-homeKey: string,
-awayKey: string)
-: number {
-  const meetings: ForecastHistoryEntry[] = [];
-  for (const e of entries) {
-    if (
-    e.homeKey === homeKey && e.awayKey === awayKey ||
-    e.homeKey === awayKey && e.awayKey === homeKey)
-    {
-      meetings.push(e);
-    }
-  }
+  entries: readonly ForecastHistoryEntry[],
+  homeKey: string,
+  awayKey: string,
+  index?: ForecastHistoryIndex,
+): number {
+  const meetings = index
+    ? index.h2hByPair.get(h2hKeyOf(homeKey, awayKey)) ?? []
+    : entries.filter(
+        (e) =>
+          (e.homeKey === homeKey && e.awayKey === awayKey) ||
+          (e.homeKey === awayKey && e.awayKey === homeKey),
+      );
+
   if (meetings.length < FORECAST_MODEL.fallback.minH2HMeetings) {
     return FORECAST_MODEL.fallback.h2hHomePpg;
   }
+
   let pts = 0;
   for (const e of meetings) {
-    const scored = e.homeKey === homeKey ? e.match.home_score : e.match.away_score;
-    const conceded = e.homeKey === homeKey ? e.match.away_score : e.match.home_score;
-    if (scored > conceded) pts += 3;else
-    if (scored === conceded) pts += 1;
+    const scored =
+      e.homeKey === homeKey ? e.match.home_score : e.match.away_score;
+    const conceded =
+      e.homeKey === homeKey ? e.match.away_score : e.match.home_score;
+
+    if (scored > conceded) pts += 3;
+    else if (scored === conceded) pts += 1;
   }
+
   return pts / meetings.length;
 }
 
@@ -322,65 +413,140 @@ export const PRIOR_SECOND_HALF_RATIO = 0.52;
  * which would silently reduce the shared features to the away team alone.
  */
 export function computeHtFeatures(
-entries: readonly ForecastHistoryEntry[],
-homeKey: string,
-awayKey: string,
-window = FORECAST_MODEL.fallback.formWindow)
-: HtFeatures {
-  const homeMatches: MatchRow[] = [];
-  const awayMatches: MatchRow[] = [];
-  const eitherMatches: MatchRow[] = [];
+  entries: readonly ForecastHistoryEntry[],
+  homeKey: string,
+  awayKey: string,
+  window = FORECAST_MODEL.fallback.formWindow,
+  index?: ForecastHistoryIndex,
+): HtFeatures {
+  const homeHistory = teamHistory(entries, index, homeKey);
+  const awayHistory = teamHistory(entries, index, awayKey);
 
-  for (const e of entries) {
-    const m = e.match;
-    if (m.ht_home_score === null || m.ht_away_score === null) continue;
-    const involvesHome = e.homeKey === homeKey || e.awayKey === homeKey;
-    const involvesAway = e.homeKey === awayKey || e.awayKey === awayKey;
-    if (involvesHome) homeMatches.push(m);
-    if (involvesAway) awayMatches.push(m);
-    if (involvesHome || involvesAway) eitherMatches.push(m);
+  const homeMatches = homeHistory
+    .slice(-window)
+    .filter((e) => e.match.ht_home_score !== null && e.match.ht_away_score !== null)
+    .map((e) => e.match);
+
+  const awayMatches = awayHistory
+    .slice(-window)
+    .filter((e) => e.match.ht_home_score !== null && e.match.ht_away_score !== null)
+    .map((e) => e.match);
+
+  // The original contract is the last `window` chronological matches involving
+  // either team, with duplicate matches removed.
+  let combinedTail: MatchRow[];
+
+  if (index) {
+    // Only the last `window` matches from each side can contribute to the
+    // last `window` matches of the union. Merge those short tails backwards,
+    // using precomputed source positions: O(window), not O(history²).
+    const homeStart = Math.max(0, homeHistory.length - window);
+    const awayStart = Math.max(0, awayHistory.length - window);
+
+    let i = homeHistory.length - 1;
+    let j = awayHistory.length - 1;
+    const mergedReverse: ForecastHistoryEntry[] = [];
+
+    while (
+      mergedReverse.length < window &&
+      (i >= homeStart || j >= awayStart)
+    ) {
+      const h = i >= homeStart ? homeHistory[i] : undefined;
+      const a = j >= awayStart ? awayHistory[j] : undefined;
+
+      if (h && a) {
+        const hi = index.positionOf.get(h) ?? -1;
+        const ai = index.positionOf.get(a) ?? -1;
+
+        if (hi >= ai) {
+          mergedReverse.push(h);
+          i--;
+          if (h === a) j--;
+        } else {
+          mergedReverse.push(a);
+          j--;
+        }
+      } else if (h) {
+        mergedReverse.push(h);
+        i--;
+      } else if (a) {
+        mergedReverse.push(a);
+        j--;
+      }
+    }
+
+    combinedTail = mergedReverse
+      .reverse()
+      .filter(
+        (e) =>
+          e.match.ht_home_score !== null &&
+          e.match.ht_away_score !== null,
+      )
+      .map((e) => e.match);
+  } else {
+    const either: ForecastHistoryEntry[] = [];
+    for (const e of entries) {
+      if (
+        (e.homeKey === homeKey || e.awayKey === homeKey) ||
+        (e.homeKey === awayKey || e.awayKey === awayKey)
+      ) {
+        either.push(e);
+      }
+    }
+    combinedTail = either
+      .slice(-window)
+      .filter((e) => e.match.ht_home_score !== null && e.match.ht_away_score !== null)
+      .map((e) => e.match);
   }
 
-  const homeTail = homeMatches.slice(-window);
-  const awayTail = awayMatches.slice(-window);
-  const combinedTail = eitherMatches.slice(-window);
-
-  const htGoalHits = combinedTail.filter(
-    (m) => (m.ht_home_score ?? 0) + (m.ht_away_score ?? 0) > 0
-  ).length;
+  const htGoalHits = combinedTail.reduce(
+    (n, m) =>
+      n + (((m.ht_home_score ?? 0) + (m.ht_away_score ?? 0)) > 0 ? 1 : 0),
+    0,
+  );
   const htGoalRate5 = shrink(htGoalHits, combinedTail.length, PRIOR_HT_GOAL_RATE);
 
-  const leadConversionRate = (matches: MatchRow[], isHome: boolean): number => {
-    const withLead = matches.filter((m) => {
+  const leadConversionRate = (
+    matches: readonly MatchRow[],
+    isHome: boolean,
+  ): number => {
+    let withLead = 0;
+    let converted = 0;
+
+    for (const m of matches) {
       const htSign = Math.sign((m.ht_home_score ?? 0) - (m.ht_away_score ?? 0));
-      return isHome ? htSign > 0 : htSign < 0;
-    });
-    const converted = withLead.filter((m) => {
+      const hasLead = isHome ? htSign > 0 : htSign < 0;
+      if (!hasLead) continue;
+
+      withLead++;
       const ftSign = Math.sign(m.home_score - m.away_score);
-      return isHome ? ftSign > 0 : ftSign < 0;
-    }).length;
-    return shrink(converted, withLead.length, PRIOR_HT_LEAD_CONVERSION);
+      if (isHome ? ftSign > 0 : ftSign < 0) converted++;
+    }
+
+    return shrink(converted, withLead, PRIOR_HT_LEAD_CONVERSION);
   };
 
   let firstHalfGoals = 0;
   let secondHalfGoals = 0;
+
   for (const m of combinedTail) {
-    firstHalfGoals += (m.ht_home_score ?? 0) + (m.ht_away_score ?? 0);
+    const htHome = m.ht_home_score ?? 0;
+    const htAway = m.ht_away_score ?? 0;
+
+    firstHalfGoals += htHome + htAway;
     secondHalfGoals +=
-    m.home_score - (m.ht_home_score ?? 0) + (
-    m.away_score - (m.ht_away_score ?? 0));
+      (m.home_score - htHome) + (m.away_score - htAway);
   }
 
   return {
     htGoalRate5,
-    htLeadConversionHome: leadConversionRate(homeTail, true),
-    htLeadConversionAway: leadConversionRate(awayTail, false),
-    // Shrunk on GOAL counts, not match counts — the rate is a goal share.
+    htLeadConversionHome: leadConversionRate(homeMatches, true),
+    htLeadConversionAway: leadConversionRate(awayMatches, false),
     secondHalfGoalRatio: shrink(
       secondHalfGoals,
       firstHalfGoals + secondHalfGoals,
-      PRIOR_SECOND_HALF_RATIO
-    )
+      PRIOR_SECOND_HALF_RATIO,
+    ),
   };
 }
 
@@ -402,15 +568,26 @@ export const PRIOR_MATCH_TOTAL_GOALS = 2.5;
  * permanence after a ≥5-round walk-forward ablation shows non-negative impact.
  */
 export function prevMatchGoals(
-entries: readonly ForecastHistoryEntry[],
-teamKey: string)
-: number {
+  entries: readonly ForecastHistoryEntry[],
+  teamKey: string,
+  index?: ForecastHistoryIndex,
+): number {
+  if (index) {
+    const history = index.byTeam.get(teamKey);
+    if (history && history.length > 0) {
+      const e = history[history.length - 1];
+      return e.match.home_score + e.match.away_score;
+    }
+    return PRIOR_MATCH_TOTAL_GOALS;
+  }
+
   for (let i = entries.length - 1; i >= 0; i--) {
     const e = entries[i];
     if (e.homeKey === teamKey || e.awayKey === teamKey) {
       return e.match.home_score + e.match.away_score;
     }
   }
+
   return PRIOR_MATCH_TOTAL_GOALS;
 }
 
@@ -544,12 +721,27 @@ maxGoals = 7)
       if (isNoBtts && total >= 4) highGoalNoBtts += p;
       if (isNoBtts && Math.abs(h - a) >= 3) cleanSheetBlowout += p;
 
-      scoreList.push({ score: `${h}-${a}`, prob: p });
-      if (p > bestP) {bestP = p;mostLikelyScore = `${h}-${a}`;}
+      const candidate = { score: `${h}-${a}`, prob: p };
+      let insertAt = scoreList.length;
+
+      for (let i = 0; i < scoreList.length; i++) {
+        if (p > scoreList[i].prob) {
+          insertAt = i;
+          break;
+        }
+      }
+
+      if (insertAt < 5 || scoreList.length < 5) {
+        scoreList.splice(insertAt, 0, candidate);
+        if (scoreList.length > 5) scoreList.pop();
+      }
+
+      if (p > bestP) {
+        bestP = p;
+        mostLikelyScore = `${h}-${a}`;
+      }
     }
   }
-
-  scoreList.sort((x, y) => y.prob - x.prob);
 
   return {
     scoreMatrix: matrix,
@@ -673,6 +865,11 @@ export interface ForecastRequest {
    */
   readonly leagueGpm?: LeagueGoalsPerMatch;
   /**
+   * Optional prebuilt chronological history index. Reusing it avoids repeated
+   * full-history scans for every fixture.
+   */
+  readonly historyIndex?: ForecastHistoryIndex;
+  /**
    * As-of fitted M1 coefficients. Absent → cold-start hand-set logits,
    * and `m1Source` in the result is `'manual'`.
    */
@@ -761,21 +958,27 @@ export interface ForecastResult {
  */
 export function forecastCore(request: ForecastRequest): ForecastResult {
   const { entries, homeKey, awayKey, weights, T } = request;
+  const historyIndex = request.historyIndex;
   const gpm = request.leagueGpm ?? leagueGoalsPerMatch(entries);
 
   // ── Stage 0: context & data sufficiency ────────────────────────────────────
-  const homePlayed = playedCount(entries, homeKey);
-  const awayPlayed = playedCount(entries, awayKey);
+  const homePlayed = playedCount(entries, homeKey, historyIndex);
+  const awayPlayed = playedCount(entries, awayKey, historyIndex);
   const minPlayed = Math.min(homePlayed, awayPlayed);
   const dataSufficiency = sufficiencyOf(minPlayed);
 
   // ── Stage 1: feature engineering (20 dimensions) ──────────────────────────
-  const homeVenue: MatchRow[] = [];
-  const awayVenue: MatchRow[] = [];
-  for (const e of entries) {
-    if (e.homeKey === homeKey) homeVenue.push(e.match);
-    if (e.awayKey === awayKey) awayVenue.push(e.match);
-  }
+  const homeVenue: MatchRow[] = (
+    historyIndex
+      ? historyIndex.homeByTeam.get(homeKey) ?? []
+      : entries.filter((e) => e.homeKey === homeKey)
+  ).map((e) => e.match);
+
+  const awayVenue: MatchRow[] = (
+    historyIndex
+      ? historyIndex.awayByTeam.get(awayKey) ?? []
+      : entries.filter((e) => e.awayKey === awayKey)
+  ).map((e) => e.match);
 
   const homeAttHome = venueAttack(homeVenue, true, gpm.home);
   const homeDefHome = venueDefense(homeVenue, true, gpm.away);
@@ -786,10 +989,31 @@ export function forecastCore(request: ForecastRequest): ForecastResult {
   const wAway = weightOf(weights, awayKey);
   const weightDiff = wHome - wAway;
 
-  const homeForm = formOf(entries, homeKey);
-  const awayForm = formOf(entries, awayKey);
-  const h2hHomePpg = h2hHomePpgOf(entries, homeKey, awayKey);
-  const htF = computeHtFeatures(entries, homeKey, awayKey);
+  const homeForm = formOf(
+    entries,
+    homeKey,
+    FORECAST_MODEL.fallback.formWindow,
+    historyIndex,
+  );
+  const awayForm = formOf(
+    entries,
+    awayKey,
+    FORECAST_MODEL.fallback.formWindow,
+    historyIndex,
+  );
+  const h2hHomePpg = h2hHomePpgOf(
+    entries,
+    homeKey,
+    awayKey,
+    historyIndex,
+  );
+  const htF = computeHtFeatures(
+    entries,
+    homeKey,
+    awayKey,
+    FORECAST_MODEL.fallback.formWindow,
+    historyIndex,
+  );
 
   const features: FeatureVector = {
     home_weight_index: wHome,
@@ -810,8 +1034,8 @@ export function forecastCore(request: ForecastRequest): ForecastResult {
     htLeadConversionHome: htF.htLeadConversionHome,
     htLeadConversionAway: htF.htLeadConversionAway,
     secondHalfGoalRatio: htF.secondHalfGoalRatio,
-    prevMatchTotalGoalsHome: prevMatchGoals(entries, homeKey),
-    prevMatchTotalGoalsAway: prevMatchGoals(entries, awayKey)
+    prevMatchTotalGoalsHome: prevMatchGoals(entries, homeKey, historyIndex),
+    prevMatchTotalGoalsAway: prevMatchGoals(entries, awayKey, historyIndex)
   };
 
   // ── Stage 2: baselines (B0 flat prior + B1 venue-adjusted Poisson) ────────

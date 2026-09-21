@@ -48,9 +48,50 @@ export const BTTS_DEATHZONE_GATE_ACTIVE = false;
 // Típusok
 // ---------------------------------------------------------------------------
 
+/**
+ * The explicit state a candidate reaches in the core eligibility funnel.
+ *
+ * `BLOCKED` is the hard-veto terminal state: the candidate may not proceed to
+ * canonicalisation, ranking, or card placement. `eligible` remains `false` and
+ * `reason` is filled. The `RAW` / `CALIBRATED` etc. states are informational —
+ * only `BLOCKED` changes the outcome.
+ *
+ * Policy A (see lastinfo.md §1–2): a statistically refuted evidence band
+ * (`evidenceLevel === 'excluded'`) with sufficient own-sample is a hard veto.
+ * Raw model probability cannot override it under any circumstances.
+ */
+export type CoreCandidateState =
+  | 'RAW'
+  | 'CALIBRATED'
+  | 'EVIDENCE_ASSESSED'
+  | 'RISK_ASSESSED'
+  | 'VALUE_ASSESSED'
+  | 'CORE_ELIGIBLE'
+  | 'CORE_PUBLISHED'
+  | 'BLOCKED'
+  | 'RESEARCH_ONLY'
+  | 'FLAGGED';
+
 export interface BttsEligibilityResult {
   /** A sor átmehet-e a Core kapun. Shadow módban mindig `true`. */
   eligible: boolean;
+  /**
+   * Az explicit állapot. `BLOCKED` jelenti, hogy a sor nem proceeding — a
+   * `reason` mező mondja meg, miért. Shadow módban a deathzone kapu nem
+   * blokkol, csak `shadowWouldFail`-t állít.
+   */
+  state: CoreCandidateState;
+  /**
+   * Strukturált blokkolási ok. Csak `state === 'BLOCKED'` esetén kitöltött.
+   * `'evidence_refuted'` — a sor saját sávja cáfolt (Policy A hard veto).
+   * `'deathzone'` — a 40–55% halálzóna hard kapuja (éles módban).
+   */
+  reason: 'evidence_refuted' | 'deathzone' | null;
+  /**
+   * Olvasható, renderelhető részlet a trace panel számára. Csak `BLOCKED`
+   * esetén kitöltött.
+   */
+  detail: string | null;
   /**
    * Az első megbukott kapu szöveges oka. Csak `eligible: false` esetén
    * kitöltött — éles módban; shadow módban `undefined`.
@@ -111,6 +152,27 @@ export function isBttsEligibleForCore(candidate: {
 }): BttsEligibilityResult {
   const modelProb = candidate.modelProb ?? 0;
 
+  // --- Kapu 0: Evidence veto — Policy A hard veto (ALWAYS active) ----------
+  // A statistically refuted own band (evidenceLevel === 'excluded') with
+  // sufficient own-sample is a hard veto. Raw model probability cannot
+  // override a refuted evidence band under any circumstances.
+  // See lastinfo.md §1–2 for the rationale.
+  if (candidate.evidenceLevel === 'excluded') {
+    const detail =
+      `Band statistically refuted (evidenceLevel=excluded). ` +
+      `modelProb=${(modelProb * 100).toFixed(1)}% is not sufficient to override. ` +
+      `Policy A in effect — see lastinfo.md §2.`;
+    return {
+      eligible: false,
+      state: 'BLOCKED',
+      reason: 'evidence_refuted',
+      detail,
+      failureReason: detail,
+      shadowWouldFail: true,
+      shadowFailureReason: detail,
+    };
+  }
+
   // --- Kapu 1: Abszolút minimum — modell < 40% ----------------------------
   // Ez a kapu a BTTS_DEATHZONE_GATE_ACTIVE flag értékétől FÜGGETLEN:
   // 40% alatt a sor semmilyen üzemmódban nem lehet Core-jogosult.
@@ -120,12 +182,18 @@ export function isBttsEligibleForCore(candidate: {
       // Shadow mód: átengedi, de jelzi, hogy éles módban kiesne
       return {
         eligible: true,
+        state: 'RAW',
+        reason: null,
+        detail: null,
         shadowWouldFail: true,
         shadowFailureReason: reason,
       };
     }
     return {
       eligible: false,
+      state: 'BLOCKED',
+      reason: 'deathzone',
+      detail: reason,
       failureReason: reason,
       shadowWouldFail: true,
       shadowFailureReason: reason,
@@ -140,12 +208,18 @@ export function isBttsEligibleForCore(candidate: {
     if (!BTTS_DEATHZONE_GATE_ACTIVE) {
       return {
         eligible: true,
+        state: 'RAW',
+        reason: null,
+        detail: null,
         shadowWouldFail: true,
         shadowFailureReason: reason,
       };
     }
     return {
       eligible: false,
+      state: 'BLOCKED',
+      reason: 'deathzone',
+      detail: reason,
       failureReason: reason,
       shadowWouldFail: true,
       shadowFailureReason: reason,
@@ -155,6 +229,9 @@ export function isBttsEligibleForCore(candidate: {
   // --- Átment minden kapun ---------------------------------------------------
   return {
     eligible: true,
+    state: 'EVIDENCE_ASSESSED',
+    reason: null,
+    detail: null,
     shadowWouldFail: false,
   };
 }

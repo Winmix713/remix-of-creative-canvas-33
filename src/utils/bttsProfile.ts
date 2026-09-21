@@ -274,6 +274,70 @@ export function blowoutRiskTone(value: number): 'positive' | 'warning' | 'negati
   return 'positive';
 }
 
+/* -------------------------------------------------------------------------- *
+ * DYNAMIC BLOWOUT VETO — auto-activate veto on one-sided dominance.
+ *
+ * When the pair's goal profile shows a severe asymmetry (one side dominates
+ * scoring, the other rarely scores), the veto activates automatically for
+ * THAT pair, regardless of the global vetoMode. This prevents a shadow-mode
+ * configuration from publishing a BTTS line on a pair whose own history says
+ * "one team keeps clean sheets".
+ * -------------------------------------------------------------------------- */
+
+/** Minimum gap between the two sides' weighted average goals to trigger auto-veto. */
+export const DYNAMIC_VETO_GOAL_GAP = 1.8;
+/** Minimum weighted clean-sheet blowout rate to trigger auto-veto. */
+export const DYNAMIC_VETO_CS_RATE = 0.20;
+/** Minimum direct sample size for the dynamic veto to fire. */
+export const DYNAMIC_VETO_MIN_SAMPLE = 5;
+
+export interface DynamicVetoInput {
+  profile: H2HGoalProfile | null;
+  /** The existing risk assessment from `assessBttsPairRisk`. */
+  risk: BttsBlowoutRiskAssessment;
+}
+
+export interface DynamicVetoResult {
+  /** Whether the veto should be auto-activated for this pair. */
+  autoActivate: boolean;
+  /** Human-readable reason in Hungarian. */
+  reason: string;
+}
+
+export function shouldAutoActivateVeto(input: DynamicVetoInput): DynamicVetoResult {
+  const { profile, risk } = input;
+  if (!profile || profile.directSampleSize < DYNAMIC_VETO_MIN_SAMPLE) {
+    return { autoActivate: false, reason: '' };
+  }
+
+  const goalGap = Math.abs(profile.homeGoalsAvg - profile.awayGoalsAvg);
+  const csRate = profile.weightedCleanSheetBlowoutRate;
+
+  const gapTriggered = goalGap >= DYNAMIC_VETO_GOAL_GAP;
+  const csTriggered = csRate >= DYNAMIC_VETO_CS_RATE;
+
+  if (gapTriggered && csTriggered) {
+    return {
+      autoActivate: true,
+      reason:
+        `Automatikus veto: a két csapat átlag gólközti olló ${goalGap.toFixed(1)} ` +
+        `(küszöb ${DYNAMIC_VETO_GOAL_GAP}), és a súlyozott kapott-nullás kiütés ` +
+        `arány ${(csRate * 100).toFixed(1)}% (küszöb ${(DYNAMIC_VETO_CS_RATE * 100).toFixed(0)}%).`
+    };
+  }
+
+  if (risk.wouldVeto && risk.reasonCodes.includes('blowout_history')) {
+    return {
+      autoActivate: true,
+      reason:
+        'Automatikus veto: a H2H történet ismétlődő egyoldalú kiütéseket tartalmaz ' +
+        '(blowout_history okkód).'
+    };
+  }
+
+  return { autoActivate: false, reason: '' };
+}
+
 export function blowoutRiskLabel(value: number): string {
   const tone = blowoutRiskTone(value);
   return tone === 'negative' ? 'Emelkedett' : tone === 'warning' ? 'Közepes' : 'Alacsony';

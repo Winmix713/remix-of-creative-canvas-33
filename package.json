@@ -8,7 +8,18 @@
     "build": "npx vite build",
     "build:dev": "npx vite build --mode development",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "preview": "npx vite preview"
+    "preview": "npx vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "supabase:bootstrap": "node scripts/supabase/bootstrap.mjs",
+    "supabase:verify": "node scripts/supabase/verify-connection.mjs",
+    "supabase:audit": "node scripts/supabase/security-audit.mjs",
+    "supabase:schema": "node scripts/supabase/schema-check.mjs",
+    "supabase:parity": "node scripts/supabase/parity-check.mjs",
+    "supabase:diagnose": "node scripts/supabase/diagnose.mjs",
+    "supabase:ingest": "node scripts/supabase/ingest.mjs",
+    "build:engine-core": "node scripts/build-engine-core.mjs",
+    "supabase:check": "node scripts/supabase/bootstrap.mjs && node scripts/supabase/schema-check.mjs && node scripts/supabase/security-audit.mjs && node scripts/supabase/parity-check.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",
@@ -20,22 +31,30 @@
     "react-router-dom": "^6.26.2",
     "recharts": "^2.12.7",
     "sonner": "^2.0.1",
-    "tailwind-merge": "latest"
+    "tailwind-merge": "latest",
+    "zod": "^4.6.2"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/node": "^20.11.18",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^5.54.0",
     "@typescript-eslint/parser": "^5.54.0",
     "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/coverage-v8": "^2.1.9",
+    "autoprefixer": "latest",
     "eslint": "^8.50.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.1",
+    "esbuild": "^0.25.10",
+    "jsdom": "^30.0.1",
+    "postcss": "latest",
+    "tailwindcss": "3.4.17",
     "typescript": "^5.5.4",
     "vite": "^5.2.0",
-    "tailwindcss": "3.4.17",
-    "autoprefixer": "latest",
-    "postcss": "latest"
+    "vitest": "^2"
   }
 }

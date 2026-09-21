@@ -122,6 +122,7 @@ state: Omit<PersistedState, 'schemaVersion' | 'savedAt'>)
 export interface LoadedState {
   seasons: Season[];
   teamWeights: WeightMap;
+  manualWeightOverrides: WeightMap;
   teamAliasMap: AliasMap;
   seasonCounters: SeasonCounters;
   calibration: CalibrationMap;
@@ -175,6 +176,12 @@ function migrateV1ToV2(parsed: LegacyState): LoadedState {
   return {
     seasons: migratedSeasons,
     teamWeights: newWeights,
+    // Earlier snapshots have no provenance. Preserve their values rather than
+    // letting a later CSV import silently replace an operator's tuning.
+    manualWeightOverrides: {
+      angol: { ...newWeights.angol },
+      spanyol: { ...newWeights.spanyol }
+    },
     teamAliasMap: newAliases,
     seasonCounters: counters,
     calibration: {
@@ -220,9 +227,21 @@ function quarantine(backend: StorageBackend, raw: string): string | null {
 
 function hydrate(parsed: PersistedState & LegacyState): LoadedState {
   if (!parsed.schemaVersion || parsed.schemaVersion < 2) return migrateV1ToV2(parsed);
+  const weights = parsed.teamWeights ?? emptyWeights();
+  const storedOverrides = parsed.manualWeightOverrides;
+  const manualWeightOverrides = storedOverrides ? {
+    angol: { ...(storedOverrides.angol ?? {}) },
+    spanyol: { ...(storedOverrides.spanyol ?? {}) }
+  } : {
+    // A v3 snapshot cannot distinguish automatic and manual values. Favour
+    // preservation: users can deliberately re-apply the recommendations.
+    angol: { ...(weights.angol ?? {}) },
+    spanyol: { ...(weights.spanyol ?? {}) }
+  };
   return {
     seasons: Array.isArray(parsed.seasons) ? parsed.seasons : [],
-    teamWeights: parsed.teamWeights ?? emptyWeights(),
+    teamWeights: weights,
+    manualWeightOverrides,
     teamAliasMap: parsed.teamAliasMap ?? emptyAliases(),
     seasonCounters: parsed.seasonCounters ?? emptyCounters(),
     calibration: parsed.calibration ?? emptyCalibration(),

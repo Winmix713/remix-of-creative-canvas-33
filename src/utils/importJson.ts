@@ -29,6 +29,7 @@ export interface ImportPayload {
   settings: WinmixSettings;
   calibration: CalibrationMap;
   teamWeights: WeightMap;
+  manualWeightOverrides: WeightMap;
   teamAliasMap: AliasMap;
   seasonCounters: SeasonCounters;
   seasons: Season[];
@@ -37,6 +38,7 @@ export interface ImportPayload {
 export interface ImportStateSlices {
   seasons: Season[];
   teamWeights: WeightMap;
+  manualWeightOverrides: WeightMap;
   teamAliasMap: AliasMap;
   seasonCounters: SeasonCounters;
   calibration: CalibrationMap;
@@ -324,6 +326,10 @@ export function parseImportFile(text: string): ParseImportResult {
   const weights = sanitizeLeagueRecord<number>(raw.teamWeights, (v) =>
   isFiniteNumber(v) ? v : null
   );
+  const manualOverrides = Object.prototype.hasOwnProperty.call(raw, 'manualWeightOverrides') ?
+  sanitizeLeagueRecord<number>(raw.manualWeightOverrides, (v) => isFiniteNumber(v) ? v : null) :
+  // Legacy exports did not record provenance. Keep their values authoritative.
+  weights;
   const aliases = sanitizeLeagueRecord<string>(raw.teamAliasMap, (v) =>
   typeof v === 'string' && v ? v : null
   );
@@ -360,6 +366,7 @@ export function parseImportFile(text: string): ParseImportResult {
       },
       calibration: sanitizeCalibration(raw.calibration),
       teamWeights: weights as WeightMap,
+      manualWeightOverrides: manualOverrides as WeightMap,
       teamAliasMap: aliases as AliasMap,
       seasonCounters: counters,
       seasons
@@ -413,6 +420,10 @@ export function replaceWithPayload(payload: ImportPayload): ImportStateSlices {
       angol: { ...payload.teamWeights.angol },
       spanyol: { ...payload.teamWeights.spanyol }
     },
+    manualWeightOverrides: {
+      angol: { ...payload.manualWeightOverrides.angol },
+      spanyol: { ...payload.manualWeightOverrides.spanyol }
+    },
     teamAliasMap: {
       angol: { ...payload.teamAliasMap.angol },
       spanyol: { ...payload.teamAliasMap.spanyol }
@@ -464,15 +475,21 @@ payload: ImportPayload)
   });
 
   const weights = emptyWeights();
+  const manualWeightOverrides = emptyWeights();
   const aliases = emptyAliases();
   LEAGUES.forEach((league) => {
     weights[league] = { ...current.teamWeights[league], ...payload.teamWeights[league] };
+    manualWeightOverrides[league] = {
+      ...current.manualWeightOverrides[league],
+      ...payload.manualWeightOverrides[league]
+    };
     aliases[league] = { ...current.teamAliasMap[league], ...payload.teamAliasMap[league] };
   });
 
   return {
     seasons,
     teamWeights: weights,
+    manualWeightOverrides,
     teamAliasMap: aliases,
     seasonCounters: counters,
     // Temperature and settings stay local on merge; the pipeline refits T right after.
