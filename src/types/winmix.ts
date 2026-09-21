@@ -161,6 +161,11 @@ export interface MatchPipeline {
     highGoalNoBtts?: number;
     cleanSheetBlowout?: number;
   };
+  /** Model-implied goal-scoring rates (Poisson lambdas) for the joint matrix. */
+  lambdas: {
+    home: number;
+    away: number;
+  };
   reconciliation: {
     brierB1: number;
     brierEns: number;

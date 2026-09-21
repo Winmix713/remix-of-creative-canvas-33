@@ -236,9 +236,15 @@ leagues: readonly League[])
   const teamWeights = cloneLeagueRecord<number>(snapshot.teamWeights);
 
   for (const league of leagues) {
+    // F1 fix: only use matches with known outcomes (scored matches) for weight
+    // computation. Unscheduled or unscored fixtures are future data that must
+    // not influence the weight map used for historical replay — doing so would
+    // leak future outcomes into historical predictions.
     const matches = snapshot.seasons.
     filter((season) => season.league === league).
-    flatMap((season) => season.matches);
+    flatMap((season) => season.matches).
+    filter((m) => m.home_score !== null && m.away_score !== null &&
+      Number.isFinite(m.home_score) && Number.isFinite(m.away_score));
     const recommendations = computeAutoTeamWeights(matches, league);
 
     for (const [key, recommendation] of Object.entries(recommendations)) {
@@ -722,7 +728,13 @@ export function useWinmixEngine() {
 
       let working = snapshot;
       for (const { league, result, base: _base } of results) {
-        working = { ...working, seasons: result.seasons };
+        // F17 fix: merge only the completed league's seasons into the
+        // accumulated state. The old code did `seasons: result.seasons`,
+        // which replaced ALL seasons with each league's result — discarding
+        // earlier leagues' newly computed predictions.
+        const otherSeasons = working.seasons.filter((s) => s.league !== league);
+        const leagueSeasons = result.seasons.filter((s) => s.league === league);
+        working = { ...working, seasons: [...otherSeasons, ...leagueSeasons] };
         calibration[league] = result.calibration;
 
         writeCheckpoint(result.checkpoint);
@@ -1220,7 +1232,14 @@ export function useWinmixEngine() {
       const snapshot = { ...stateRef.current, teamWeights: draft.weights, manualWeightOverrides: draft.manualOverrides };
       report({ label: 'Súlyok alkalmazása és újraszámítása…', pct: 0 }, true);
       try {
-        const next = await runPipelineForLeagues([snapshot.currentLeague], snapshot, 'Súlyok alkalmazása');
+        // F6 fix: the draft can hold weight changes for BOTH leagues, not just
+        // the one the user is currently viewing. Recompute every league that
+        // has a weight entry in the draft so no change is silently lost.
+        const changedLeagues = (Object.keys(draft.weights) as League[]).filter(
+          (league) => draft.weights[league] && Object.keys(draft.weights[league]).length > 0
+        );
+        const leaguesToRun = changedLeagues.length > 0 ? changedLeagues : [snapshot.currentLeague];
+        const next = await runPipelineForLeagues(leaguesToRun, snapshot, 'Súlyok alkalmazása');
         if (isStale(runId)) return;
         weightDraftRef.current = null;
         setWeightDraftVersion((version) => version + 1);

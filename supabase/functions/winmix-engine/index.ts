@@ -4,15 +4,30 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { computeLeaguePipeline } from '../_shared/engine-core.bundle.ts';
+import { requireWinmixServerAuthorization } from '../_shared/winmix-server-auth.ts';
 
 const LEAGUES = ['angol', 'spanyol'] as const;
 const ENGINE_VERSION = 'winmix-edge-engine-1.0.0';
 const INSERT_CHUNK_SIZE = 400;
 
+// F11 fix: the engine must reject snapshots whose contract versions don't
+// match the code actually executing. These are the canonical constants from
+// src/utils/constants.ts — duplicated here because the edge function imports
+// the bundled engine, not the source constants.
+const EXPECTED_FEATURE_SCHEMA_VERSION = 2;
+const EXPECTED_PIPELINE_CONTRACT_VERSION = 5;
+const EXPECTED_MODEL_VERSION = 'winmix-core-v1';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey, X-Winmix-Server-Secret',
+};
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' },
   });
 }
 
@@ -125,8 +140,8 @@ function outputsOf(result: any, matchIdByIdentity: Map<string, string>, sequence
         outcome_home: pipeline.calibrated.home,
         outcome_draw: pipeline.calibrated.draw,
         outcome_away: pipeline.calibrated.away,
-        lambda_home: finite(pipeline.model_output?.lambdaHome ?? pipeline.lambdas?.home),
-        lambda_away: finite(pipeline.model_output?.lambdaAway ?? pipeline.lambdas?.away),
+        lambda_home: finite(pipeline.lambdas?.home),
+        lambda_away: finite(pipeline.lambdas?.away),
         confidence: finite(pipeline.confidence),
         recommendation: {
           code: pipeline.recommendation,
@@ -167,7 +182,11 @@ async function failRun(admin: any, job: any, runId: string | null, error: unknow
 }
 
 Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') return new Response(null, { status: 200, headers: corsHeaders });
   if (request.method !== 'POST') return json({ error: 'POST required' }, 405);
+
+  const authError = await requireWinmixServerAuthorization(request);
+  if (authError) return authError;
 
   const url = Deno.env.get('SUPABASE_URL') ?? '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -188,6 +207,19 @@ Deno.serve(async (request) => {
       .eq('id', job.parameter_snapshot_id).single();
     if (snapshotError || !snapshot) throw new Error(`Parameter snapshot unavailable: ${snapshotError?.message ?? 'missing'}`);
     if (snapshot.data_version_id !== job.data_version_id) throw new Error('Job and parameter snapshot refer to different data versions.');
+
+    // F11 fix: enforce that the snapshot's contract versions match the engine's
+    // actual code. A mismatch means the run would claim a contract different
+    // from what was executed.
+    if (snapshot.feature_schema_version !== EXPECTED_FEATURE_SCHEMA_VERSION) {
+      throw new Error(`Feature schema mismatch: snapshot=${snapshot.feature_schema_version}, engine=${EXPECTED_FEATURE_SCHEMA_VERSION}`);
+    }
+    if (snapshot.pipeline_contract_version !== EXPECTED_PIPELINE_CONTRACT_VERSION) {
+      throw new Error(`Pipeline contract mismatch: snapshot=${snapshot.pipeline_contract_version}, engine=${EXPECTED_PIPELINE_CONTRACT_VERSION}`);
+    }
+    if (snapshot.model_version && snapshot.model_version !== EXPECTED_MODEL_VERSION) {
+      throw new Error(`Model version mismatch: snapshot=${snapshot.model_version}, engine=${EXPECTED_MODEL_VERSION}`);
+    }
 
     const { data: version, error: versionError } = await admin
       .from('winmix_data_versions')
@@ -230,14 +262,17 @@ Deno.serve(async (request) => {
     }
     await insertChunks(admin, 'winmix_calibration_results', calibrationRows);
 
+    // F12 fix: promote atomically BEFORE marking succeeded. The old code wrote
+    // status='succeeded' first, then called the promotion RPC — if promotion
+    // failed, the run was already marked successful with no published output.
     const durationMs = Date.now() - started;
+    const { error: promoteError } = await admin.rpc('winmix_promote_engine_run', { p_run_id: runId });
+    if (promoteError) throw new Error(`Run promotion failed: ${promoteError.message}`);
     const { error: successError } = await admin.from('winmix_engine_runs').update({
       status: 'succeeded', finished_at: new Date().toISOString(), duration_ms: durationMs,
       result_summary: { sourceMatches: sourceRows.length, predictions: sequence, calibrationRows: calibrationRows.length },
     }).eq('id', runId);
     if (successError) throw new Error(`Run completion write failed: ${successError.message}`);
-    const { error: promoteError } = await admin.rpc('winmix_promote_engine_run', { p_run_id: runId });
-    if (promoteError) throw new Error(`Run promotion failed: ${promoteError.message}`);
     return json({ status: 'succeeded', runId, predictions: sequence, durationMs });
   } catch (error) {
     const message = await failRun(admin, job, runId, error);

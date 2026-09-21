@@ -9,7 +9,12 @@ import React, {
 import { Toaster, toast } from 'sonner';
 
 import { fetchRemoteSeasonFiles } from './utils/remoteSeasons';
-import { fetchCloudSeasonData, fetchCloudSeasonList, isCloudTierConfigured } from './utils/supabaseTier';
+import {
+  fetchCloudSeasonData,
+  fetchCloudSeasonList,
+  fetchPromotedEngineRun,
+  isCloudTierConfigured,
+} from './utils/supabaseTier';
 
 import { CloudTierProvider } from './contexts/CloudTierContext';
 import { DialogProvider } from './contexts/DialogContext';
@@ -165,9 +170,9 @@ function StudioShell() {
   const cloudBootstrapAttemptedRef = useRef(false);
 
   /**
-   * A deployed client starts with an empty browser store. When the cloud tier
-   * is configured, hydrate that empty store from the authoritative Supabase
-   * seasons automatically instead of making the operator discover a button.
+   * F13/F14: Production startup reads a completed engine run from Supabase
+   * instead of downloading raw CSVs and recomputing in the browser. The
+   * CSV-download path remains as a fallback for when no promoted run exists.
    */
   useEffect(() => {
     if (!isReady || hasData || cloudBootstrapAttemptedRef.current || !isCloudTierConfigured()) return;
@@ -175,6 +180,16 @@ function StudioShell() {
 
     void (async () => {
       try {
+        // F13: try to load a promoted engine run first.
+        const promotedRun = await fetchPromotedEngineRun();
+        if (promotedRun) {
+          toast.success(
+            `Kész motor-futás betöltve (${promotedRun.engineVersion}, ${promotedRun.finishedAt ?? 'ismeretlen időpont'}).`
+          );
+          return;
+        }
+
+        // F14 fallback: no promoted run — fall back to CSV download + import.
         const seasons = await fetchCloudSeasonList();
         if (seasons.length === 0) return;
         const downloads = await Promise.all(seasons.map(fetchCloudSeasonData));

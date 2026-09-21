@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Cloud, CloudOff, Download, RefreshCw, Upload } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { useCloudTierContext } from '../../../contexts/CloudTierContext';
 import { cloudEndpointSummary } from '../../../utils/supabaseTier';
 import { CROSSCHECK_TOLERANCE, type CrossCheckRow } from '../../../hooks/useOpsActions';
@@ -10,21 +10,9 @@ import { Chip, Panel, PanelActions, PanelHeader, PanelSubtitle, PanelTitle } fro
 export function CloudTierTab({
   league,
   crossCheck,
-  ingestToCloud,
-  ingesting,
-  ingestResult,
-  downloadFromCloud,
-  downloading,
-  downloadResult
 }: {
   league: League;
   crossCheck: CrossCheckRow[];
-  ingestToCloud: () => void;
-  ingesting: boolean;
-  ingestResult: { success: boolean; seasons: number; teams: number; matches: number; rejected: number; repaired: number; errors: string[] } | null;
-  downloadFromCloud: () => void;
-  downloading: boolean;
-  downloadResult: { seasons: number; matches: number; failures: string[] } | null;
 }) {
   const cloud = useCloudTierContext();
   const endpoint = useMemo(() => cloudEndpointSummary(), []);
@@ -115,22 +103,6 @@ export function CloudTierTab({
           <button
             type="button"
             className="btn btn--outline btn--sm tap gap-1.5"
-            disabled={ingesting || !cloud.configured}
-            onClick={() => void ingestToCloud()}>
-            <Upload className={`h-3.5 w-3.5 ${ingesting ? 'animate-pulse' : ''}`} aria-hidden="true" />
-            {ingesting ? 'Feltöltés…' : 'Szezonok feltöltése a felhőbe'}
-          </button>
-          <button
-            type="button"
-            className="btn btn--outline btn--sm tap gap-1.5"
-            disabled={downloading || !cloud.configured || cloud.health.degraded}
-            onClick={() => void downloadFromCloud()}>
-            <Download className={`h-3.5 w-3.5 ${downloading ? 'animate-pulse' : ''}`} aria-hidden="true" />
-            {downloading ? 'Letöltés…' : 'Szezonok letöltése a felhőből'}
-          </button>
-          <button
-            type="button"
-            className="btn btn--outline btn--sm tap gap-1.5"
             disabled={
             !cloud.configured ||
             cloud.loadingRatings ||
@@ -152,34 +124,15 @@ export function CloudTierTab({
       <p className="break-words border-b border-border px-3 py-2 text-ui-xs text-muted-foreground sm:px-4">
           Végpont: <code className="font-mono text-foreground">{endpoint.url}/rest/v1</code> · kulcs
           forrása:{' '}
-          <code className="font-mono">{endpoint.source === 'env' ? '.env' : 'beépített publishable'}</code>
+          <code className="font-mono">.env</code>
         </p> :
       null}
 
       <p className="border-b border-border px-3 py-3 text-ui-xs leading-relaxed text-muted-foreground sm:px-4">
-        A felhő tier az <strong>anon</strong> kulcsot használja, RLS mögött, csak olvas. A
-        CSV-feltöltés után a szezonok automatikusan szinkronizálódnak a Supabase-be. Az itt látott
-        SQL-oldali számok <strong>keresztellenőrzésre</strong> szolgálnak: a helyi pipeline
-        számítását viszonyítják a felhőben lévőhöz, sosem kerülnek be a pipeline-ba.
+        A felhő tier az <strong>anon</strong> kulcsot használja, RLS mögött, csak olvas. Az adatverziók
+        és motorfutások kizárólag szerveroldali folyamaton keresztül jönnek létre. Ez a panel nem
+        indít feltöltést, nem tölti vissza a nyers CSV-ket, és nem futtat pipeline-t a böngészőben.
       </p>
-
-      {ingestResult ? (
-        <div className={`border-b border-border px-3 py-3 text-ui-xs sm:px-4 ${ingestResult.success ? 'text-signal' : 'text-error'}`}>
-          {ingestResult.success ?
-            `Feltöltve: ${ingestResult.seasons} szezon, ${ingestResult.teams} csapat, ${ingestResult.matches} mérkőzés` +
-            (ingestResult.rejected > 0 ? `, ${ingestResult.rejected} elutasítva` : '') +
-            (ingestResult.repaired > 0 ? `, ${ingestResult.repaired} javítva` : '') :
-            `Hiba: ${ingestResult.errors.join('; ')}`}
-        </div>
-      ) : null}
-
-      {downloadResult ? (
-        <div className={`border-b border-border px-3 py-3 text-ui-xs sm:px-4 ${downloadResult.failures.length === 0 ? 'text-signal' : 'text-error'}`}>
-          {downloadResult.failures.length === 0 ?
-            `Letöltve: ${downloadResult.seasons} szezon, ${downloadResult.matches} mérkőzés — importálás folyamatban` :
-            `Hiba: ${downloadResult.failures.join('; ')}`}
-        </div>
-      ) : null}
 
       <DataGrid
         columns={columns}

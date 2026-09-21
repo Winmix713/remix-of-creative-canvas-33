@@ -126,43 +126,6 @@ function openDB(): Promise<IDBDatabase | null> {
   return dbPromise;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function isCachedPipelineState(value: unknown): value is CachedPipelineState {
-  if (!isRecord(value)) return false;
-
-  return (
-    typeof value.schemaVersion === 'number' &&
-    typeof value.featureSchemaVersion === 'number' &&
-    typeof value.pipelineContractVersion === 'number' &&
-    typeof value.savedAt === 'string' &&
-    Array.isArray(value.seasons) &&
-    isRecord(value.teamWeights) &&
-    isRecord(value.teamAliasMap) &&
-    isRecord(value.seasonCounters) &&
-    isRecord(value.calibration) &&
-    isRecord(value.settings) &&
-    isRecord(value.round) &&
-    Array.isArray(value.slips)
-  );
-}
-
-async function deleteCachedRecord(db: IDBDatabase): Promise<void> {
-  try {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).delete(RECORD_KEY);
-    await new Promise<void>((resolve) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
-      tx.onabort = () => resolve();
-    });
-  } catch {
-    // Best effort only.
-  }
-}
-
 export function isPipelineCacheAvailable(): Promise<boolean> {
   return openDB().then((db) => db !== null);
 }

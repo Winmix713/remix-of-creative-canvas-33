@@ -438,3 +438,169 @@ export async function ingestSeasonsToCloud(params: {
     window.clearTimeout(timer);
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* F13/F14: Production engine-run reader                                       */
+/* -------------------------------------------------------------------------- */
+
+export interface EngineRunSummary {
+  runId: string;
+  dataVersionId: string;
+  engineVersion: string;
+  status: string;
+  inputFingerprint: string | null;
+  resultSummary: Record<string, unknown> | null;
+  createdAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+}
+
+export interface EngineRunPrediction {
+  matchId: string;
+  outcomeHome: number;
+  outcomeDraw: number;
+  outcomeAway: number;
+  lambdaHome: number | null;
+  lambdaAway: number | null;
+  confidence: number | null;
+  recommendation: Record<string, unknown>;
+  markets: Record<string, unknown>;
+  modelOutput: Record<string, unknown>;
+}
+
+export interface EngineRunMatchMeta {
+  matchId: string;
+  seasonId: string;
+  league: string;
+  matchNo: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  kickoffIso: string | null;
+}
+
+export interface EngineRunData {
+  run: EngineRunSummary;
+  matches: EngineRunMatchMeta[];
+  predictions: EngineRunPrediction[];
+}
+
+const EngineRunSchema = z.object({
+  id: z.string().uuid(),
+  data_version_id: z.string().uuid(),
+  engine_version: z.string(),
+  status: z.string(),
+  input_fingerprint: z.string().nullable().optional(),
+  result_summary: z.record(z.unknown()).nullable().optional(),
+  created_at: z.string(),
+  finished_at: z.string().nullable().optional(),
+  duration_ms: z.number().nullable().optional(),
+});
+
+/**
+ * Reads the most recently promoted, successful engine run from Supabase.
+ * Returns null if no promoted run exists.
+ */
+export async function fetchPromotedEngineRun(): Promise<EngineRunSummary | null> {
+  const raw = await restGet(
+    'winmix_engine_runs?status=eq.succeeded&order=created_at.desc&limit=1' +
+    '&select=id,data_version_id,engine_version,status,input_fingerprint,result_summary,created_at,finished_at,duration_ms',
+    10000
+  );
+  const arr = raw as unknown[];
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  const parsed = EngineRunSchema.safeParse(arr[0]);
+  if (!parsed.success) return null;
+  return {
+    runId: parsed.data.id,
+    dataVersionId: parsed.data.data_version_id,
+    engineVersion: parsed.data.engine_version,
+    status: parsed.data.status,
+    inputFingerprint: parsed.data.input_fingerprint ?? null,
+    resultSummary: parsed.data.result_summary ?? null,
+    createdAt: parsed.data.created_at,
+    finishedAt: parsed.data.finished_at ?? null,
+    durationMs: parsed.data.duration_ms ?? null,
+  };
+}
+
+/**
+ * Reads all matches (with team names) for a given data version, paginated.
+ */
+export async function fetchEngineRunMatches(dataVersionId: string): Promise<EngineRunMatchMeta[]> {
+  const rows: EngineRunMatchMeta[] = [];
+  for (let from = 0; ; from += 1000) {
+    const raw = await restGet(
+      `winmix_matches?data_version_id=eq.${encodeURIComponent(dataVersionId)}` +
+      '&select=id,season_id,league,match_no,home_score,away_score,kickoff_iso' +
+      ',home:winmix_teams!winmix_matches_home_team_id_fkey(display_name)' +
+      ',away:winmix_teams!winmix_matches_away_team_id_fkey(display_name)' +
+      '&order=season_id.asc,match_no.asc' +
+      `&range=${from}-${from + 999}`,
+      30000
+    );
+    const arr = raw as any[];
+    for (const row of arr) {
+      rows.push({
+        matchId: row.id,
+        seasonId: row.season_id,
+        league: row.league,
+        matchNo: Number(row.match_no),
+        homeTeam: row.home?.display_name ?? '',
+        awayTeam: row.away?.display_name ?? '',
+        homeScore: row.home_score !== null ? Number(row.home_score) : null,
+        awayScore: row.away_score !== null ? Number(row.away_score) : null,
+        kickoffIso: row.kickoff_iso ?? null,
+      });
+    }
+    if (arr.length < 1000) break;
+  }
+  return rows;
+}
+
+/**
+ * Reads all predictions for a given engine run, paginated.
+ */
+export async function fetchEngineRunPredictions(runId: string): Promise<EngineRunPrediction[]> {
+  const rows: EngineRunPrediction[] = [];
+  for (let from = 0; ; from += 1000) {
+    const raw = await restGet(
+      `winmix_predictions?run_id=eq.${encodeURIComponent(runId)}` +
+      '&select=match_id,outcome_home,outcome_draw,outcome_away,lambda_home,lambda_away,confidence,recommendation,markets,model_output' +
+      '&order=match_id.asc' +
+      `&range=${from}-${from + 999}`,
+      30000
+    );
+    const arr = raw as any[];
+    for (const row of arr) {
+      rows.push({
+        matchId: row.match_id,
+        outcomeHome: Number(row.outcome_home),
+        outcomeDraw: Number(row.outcome_draw),
+        outcomeAway: Number(row.outcome_away),
+        lambdaHome: row.lambda_home !== null ? Number(row.lambda_home) : null,
+        lambdaAway: row.lambda_away !== null ? Number(row.lambda_away) : null,
+        confidence: row.confidence !== null ? Number(row.confidence) : null,
+        recommendation: row.recommendation ?? {},
+        markets: row.markets ?? {},
+        modelOutput: row.model_output ?? {},
+      });
+    }
+    if (arr.length < 1000) break;
+  }
+  return rows;
+}
+
+/**
+ * Loads a complete promoted engine run: the run summary, all matches, and all
+ * predictions. This is the production startup data path — the browser reads
+ * pre-computed outputs instead of recomputing from raw CSV.
+ */
+export async function loadEngineRunData(run: EngineRunSummary): Promise<EngineRunData> {
+  const [matches, predictions] = await Promise.all([
+    fetchEngineRunMatches(run.dataVersionId),
+    fetchEngineRunPredictions(run.runId),
+  ]);
+  return { run, matches, predictions };
+}
