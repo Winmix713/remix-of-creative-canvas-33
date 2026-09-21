@@ -2,7 +2,11 @@ REPOSITORY EXPORT
 GyĂ¶kĂ©r:   C:\numejka
 KĂ©szĂĽlt:  2026-09-08 12:32:48
 ========================================================
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: components.json
 SIZE: 414 B   LINES: 21
@@ -28,7 +32,11 @@ SIZE: 414 B   LINES: 21
   }
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: drizzle.config.ts
 SIZE: 245 B   LINES: 11
@@ -44,7 +52,11 @@ export default defineConfig({
   },
 });
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: drizzle\migrations\meta\_journal.json
 SIZE: 209 B   LINES: 14
@@ -63,7 +75,11 @@ SIZE: 209 B   LINES: 14
   ]
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: drizzle\migrations\meta\0000_snapshot.json
 SIZE: 336 B   LINES: 19
@@ -87,14 +103,22 @@ SIZE: 336 B   LINES: 19
   }
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: drizzle\schema.ts
 SIZE: 60 B   LINES: 2
 ========================================================
 // auto-generated and intentionally left blank, do not edit
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: eslint.config.js
 SIZE: 765 B   LINES: 27
@@ -126,7 +150,11 @@ export default tseslint.config(
   },
 );
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: index.html
 SIZE: 1,20 KB   LINES: 25
@@ -156,7 +184,11 @@ SIZE: 1,20 KB   LINES: 25
   </body>
 </html>
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: package.json
 SIZE: 2,88 KB   LINES: 91
@@ -252,7 +284,11 @@ SIZE: 2,88 KB   LINES: 91
   }
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: package-lock.json
 SIZE: 243,83 KB   LINES: 7040
@@ -7297,7 +7333,11 @@ SIZE: 243,83 KB   LINES: 7040
   }
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: postcss.config.js
 SIZE: 81 B   LINES: 7
@@ -7309,7 +7349,11 @@ export default {
   },
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: README.md
 SIZE: 38,67 KB   LINES: 792
@@ -8106,7 +8150,11 @@ npm i
 npm run dev
 ```
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: roadmap.md
 SIZE: 207 B   LINES: 7
@@ -8118,7 +8166,11 @@ SIZE: 207 B   LINES: 7
 - [x] Import the 4 uploaded CSVs (960 matches)
 - [x] Verify the app loads data
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\App.css
 SIZE: 606 B   LINES: 43
@@ -8166,7 +8218,11 @@ SIZE: 606 B   LINES: 43
   color: #888;
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\App.tsx
 SIZE: 871 B   LINES: 28
@@ -8199,7 +8255,11 @@ const App = () => (
 
 export default App;
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\BackgroundEffects.tsx
 SIZE: 2,52 KB   LINES: 45
@@ -8249,7 +8309,11 @@ export const BackgroundEffects: React.FC = () => {
     </>
   );
 };
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\BarChart.tsx
 SIZE: 2,07 KB   LINES: 93
@@ -8347,7 +8411,11 @@ const BarChart = ({ data, title, horizontal = false }: BarChartProps) => {
 };
 
 export default BarChart;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ChartsDisplay.tsx
 SIZE: 6,21 KB   LINES: 207
@@ -8559,7 +8627,11 @@ export const ChartsDisplay: React.FC<ChartsDisplayProps> = ({ stats }) => {
     </div>
   );
 };
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ChartSection.tsx
 SIZE: 4,31 KB   LINES: 155
@@ -8719,7 +8791,11 @@ const ChartSection = () => {
 };
 
 export default ChartSection;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\EmptyState.tsx
 SIZE: 1,69 KB   LINES: 67
@@ -8791,7 +8867,11 @@ const EmptyState = ({
 };
 
 export default EmptyState;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\EnhancedChartSection.tsx
 SIZE: 16,32 KB   LINES: 479
@@ -9275,7 +9355,11 @@ const EnhancedChartSection = () => {
 };
 
 export default EnhancedChartSection;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\FilterSection.tsx
 SIZE: 10,32 KB   LINES: 294
@@ -9574,7 +9658,11 @@ const FilterSection = ({ filters, onFiltersChange }: FilterSectionProps) => {
 };
 
 export default FilterSection;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\Header.tsx
 SIZE: 6,46 KB   LINES: 158
@@ -9737,7 +9825,11 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate }) => {
     </header>
   );
 };
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\HeatmapChart.tsx
 SIZE: 3,22 KB   LINES: 102
@@ -9844,7 +9936,11 @@ const HeatmapChart = ({ data, title, maxValue }: HeatmapChartProps) => {
 };
 
 export default HeatmapChart;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\LoadingSpinner.tsx
 SIZE: 556 B   LINES: 27
@@ -9876,7 +9972,11 @@ const LoadingSpinner = ({ size = "md", className }: LoadingSpinnerProps) => {
 };
 
 export default LoadingSpinner;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\MatchDetailsModal.tsx
 SIZE: 13,29 KB   LINES: 345
@@ -10226,7 +10326,11 @@ const MatchDetailsModal = ({ open, onClose, match }: MatchDetailsModalProps) => 
 };
 
 export default MatchDetailsModal;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\Navigation.tsx
 SIZE: 6,20 KB   LINES: 164
@@ -10395,7 +10499,11 @@ const Navigation = () => {
 };
 
 export default Navigation;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\NumberCounter.tsx
 SIZE: 850 B   LINES: 43
@@ -10443,7 +10551,11 @@ const NumberCounter = ({
 };
 
 export default NumberCounter;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\PieChart.tsx
 SIZE: 2,21 KB   LINES: 87
@@ -10535,7 +10647,11 @@ const PieChart = ({ data, title, showLegend = true }: PieChartProps) => {
 };
 
 export default PieChart;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ProbabilitySection.tsx
 SIZE: 3,94 KB   LINES: 109
@@ -10649,7 +10765,11 @@ const ProbabilitySection = ({ stats, loading }: ProbabilitySectionProps) => {
 };
 
 export default ProbabilitySection;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ResultsSection.tsx
 SIZE: 8,51 KB   LINES: 205
@@ -10859,7 +10979,11 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({ matchData }) => 
     </section>
   );
 };
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ResultsTable.tsx
 SIZE: 18,74 KB   LINES: 460
@@ -11324,7 +11448,11 @@ const ResultsTable = ({ matches, loading, totalCount, totalPages, currentPage, o
 };
 
 export default ResultsTable;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\StatisticsCards.tsx
 SIZE: 7,23 KB   LINES: 207
@@ -11536,7 +11664,11 @@ const StatisticsCards = ({ stats, loading }: StatisticsCardsProps) => {
 };
 
 export default StatisticsCards;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\StatisticsSection.tsx
 SIZE: 3,56 KB   LINES: 85
@@ -11626,7 +11758,11 @@ export const StatisticsSection: React.FC<StatisticsSectionProps> = ({ stats }) =
     </section>
   );
 };
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\accordion.tsx
 SIZE: 1,93 KB   LINES: 53
@@ -11684,7 +11820,11 @@ AccordionContent.displayName = AccordionPrimitive.Content.displayName;
 
 export { Accordion, AccordionItem, AccordionTrigger, AccordionContent };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\alert.tsx
 SIZE: 1,51 KB   LINES: 44
@@ -11733,7 +11873,11 @@ AlertDescription.displayName = "AlertDescription";
 
 export { Alert, AlertTitle, AlertDescription };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\alert-dialog.tsx
 SIZE: 4,21 KB   LINES: 105
@@ -11843,7 +11987,11 @@ export {
   AlertDialogCancel,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\aspect-ratio.tsx
 SIZE: 143 B   LINES: 6
@@ -11854,7 +12002,11 @@ const AspectRatio = AspectRatioPrimitive.Root;
 
 export { AspectRatio };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\avatar.tsx
 SIZE: 1,33 KB   LINES: 39
@@ -11898,7 +12050,11 @@ AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName;
 
 export { Avatar, AvatarImage, AvatarFallback };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\badge.tsx
 SIZE: 1,06 KB   LINES: 30
@@ -11933,7 +12089,11 @@ function Badge({ className, variant, ...props }: BadgeProps) {
 
 export { Badge, badgeVariants };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\breadcrumb.tsx
 SIZE: 2,62 KB   LINES: 91
@@ -12029,7 +12189,11 @@ export {
   BreadcrumbEllipsis,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\button.tsx
 SIZE: 1,80 KB   LINES: 48
@@ -12082,7 +12246,11 @@ Button.displayName = "Button";
 
 export { Button, buttonVariants };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\calendar.tsx
 SIZE: 2,52 KB   LINES: 55
@@ -12142,7 +12310,11 @@ Calendar.displayName = "Calendar";
 
 export { Calendar };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\card.tsx
 SIZE: 1,74 KB   LINES: 44
@@ -12191,7 +12363,11 @@ CardFooter.displayName = "CardFooter";
 
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\carousel.tsx
 SIZE: 6,10 KB   LINES: 225
@@ -12421,7 +12597,11 @@ CarouselNext.displayName = "CarouselNext";
 
 export { type CarouselApi, Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\chart.tsx
 SIZE: 9,75 KB   LINES: 304
@@ -12730,7 +12910,11 @@ function getPayloadConfigFromPayload(config: ChartConfig, payload: unknown, key:
 
 export { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, ChartStyle };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\checkbox.tsx
 SIZE: 1,03 KB   LINES: 27
@@ -12762,7 +12946,11 @@ Checkbox.displayName = CheckboxPrimitive.Root.displayName;
 
 export { Checkbox };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\collapsible.tsx
 SIZE: 320 B   LINES: 10
@@ -12777,7 +12965,11 @@ const CollapsibleContent = CollapsiblePrimitive.CollapsibleContent;
 
 export { Collapsible, CollapsibleTrigger, CollapsibleContent };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\command.tsx
 SIZE: 4,71 KB   LINES: 133
@@ -12915,7 +13107,11 @@ export {
   CommandSeparator,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\context-menu.tsx
 SIZE: 7,02 KB   LINES: 179
@@ -13099,7 +13295,11 @@ export {
   ContextMenuRadioGroup,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\date-range-picker.tsx
 SIZE: 2,10 KB   LINES: 73
@@ -13177,7 +13377,11 @@ export function DateRangePicker({
     </div>
   );
 }
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\dialog.tsx
 SIZE: 3,67 KB   LINES: 96
@@ -13278,7 +13482,11 @@ export {
   DialogDescription,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\drawer.tsx
 SIZE: 2,87 KB   LINES: 88
@@ -13371,7 +13579,11 @@ export {
   DrawerDescription,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\dropdown-menu.tsx
 SIZE: 7,09 KB   LINES: 180
@@ -13556,7 +13768,11 @@ export {
   DropdownMenuRadioGroup,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\form.tsx
 SIZE: 3,92 KB   LINES: 130
@@ -13691,7 +13907,11 @@ FormMessage.displayName = "FormMessage";
 
 export { useFormField, Form, FormItem, FormLabel, FormControl, FormDescription, FormMessage, FormField };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\hover-card.tsx
 SIZE: 1,17 KB   LINES: 28
@@ -13724,7 +13944,11 @@ HoverCardContent.displayName = HoverCardPrimitive.Content.displayName;
 
 export { HoverCard, HoverCardTrigger, HoverCardContent };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\input.tsx
 SIZE: 799 B   LINES: 23
@@ -13752,7 +13976,11 @@ Input.displayName = "Input";
 
 export { Input };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\input-otp.tsx
 SIZE: 2,12 KB   LINES: 62
@@ -13819,7 +14047,11 @@ InputOTPSeparator.displayName = "InputOTPSeparator";
 
 export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\label.tsx
 SIZE: 696 B   LINES: 18
@@ -13842,7 +14074,11 @@ Label.displayName = LabelPrimitive.Root.displayName;
 
 export { Label };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\menubar.tsx
 SIZE: 7,68 KB   LINES: 208
@@ -14055,7 +14291,11 @@ export {
   MenubarShortcut,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\multi-select.tsx
 SIZE: 3,45 KB   LINES: 115
@@ -14175,7 +14415,11 @@ export function MultiSelect({
     </Popover>
   );
 }
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\navigation-menu.tsx
 SIZE: 4,91 KB   LINES: 121
@@ -14301,7 +14545,11 @@ export {
   NavigationMenuViewport,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\pagination.tsx
 SIZE: 2,62 KB   LINES: 82
@@ -14388,7 +14636,11 @@ export {
   PaginationPrevious,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\popover.tsx
 SIZE: 1,21 KB   LINES: 30
@@ -14423,7 +14675,11 @@ PopoverContent.displayName = PopoverPrimitive.Content.displayName;
 
 export { Popover, PopoverTrigger, PopoverContent };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\progress.tsx
 SIZE: 765 B   LINES: 24
@@ -14452,7 +14708,11 @@ Progress.displayName = ProgressPrimitive.Root.displayName;
 
 export { Progress };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\radio-group.tsx
 SIZE: 1,41 KB   LINES: 37
@@ -14494,7 +14754,11 @@ RadioGroupItem.displayName = RadioGroupPrimitive.Item.displayName;
 
 export { RadioGroup, RadioGroupItem };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\resizable.tsx
 SIZE: 1,66 KB   LINES: 38
@@ -14537,7 +14801,11 @@ const ResizableHandle = ({
 
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\scroll-area.tsx
 SIZE: 1,57 KB   LINES: 39
@@ -14581,7 +14849,11 @@ ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName;
 
 export { ScrollArea, ScrollBar };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\select.tsx
 SIZE: 5,44 KB   LINES: 144
@@ -14730,7 +15002,11 @@ export {
   SelectScrollDownButton,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\separator.tsx
 SIZE: 698 B   LINES: 21
@@ -14756,7 +15032,11 @@ Separator.displayName = SeparatorPrimitive.Root.displayName;
 
 export { Separator };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\sheet.tsx
 SIZE: 4,10 KB   LINES: 108
@@ -14869,7 +15149,11 @@ export {
   SheetTrigger,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\sidebar.tsx
 SIZE: 22,30 KB   LINES: 638
@@ -15512,7 +15796,11 @@ export {
   useSidebar,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\skeleton.tsx
 SIZE: 234 B   LINES: 8
@@ -15525,7 +15813,11 @@ function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>)
 
 export { Skeleton };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\slider.tsx
 SIZE: 1,04 KB   LINES: 24
@@ -15554,7 +15846,11 @@ Slider.displayName = SliderPrimitive.Root.displayName;
 
 export { Slider };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\sonner.tsx
 SIZE: 877 B   LINES: 28
@@ -15587,7 +15883,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
 
 export { Toaster, toast };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\switch.tsx
 SIZE: 1,12 KB   LINES: 28
@@ -15620,7 +15920,11 @@ Switch.displayName = SwitchPrimitives.Root.displayName;
 
 export { Switch };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\table.tsx
 SIZE: 2,63 KB   LINES: 73
@@ -15698,7 +16002,11 @@ TableCaption.displayName = "TableCaption";
 
 export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\tabs.tsx
 SIZE: 1,85 KB   LINES: 54
@@ -15757,7 +16065,11 @@ TabsContent.displayName = TabsPrimitive.Content.displayName;
 
 export { Tabs, TabsList, TabsTrigger, TabsContent };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\textarea.tsx
 SIZE: 751 B   LINES: 22
@@ -15784,7 +16096,11 @@ Textarea.displayName = "Textarea";
 
 export { Textarea };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\toast.tsx
 SIZE: 4,69 KB   LINES: 112
@@ -15901,7 +16217,11 @@ export {
   ToastAction,
 };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\toaster.tsx
 SIZE: 730 B   LINES: 25
@@ -15931,7 +16251,11 @@ export function Toaster() {
   );
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\toggle.tsx
 SIZE: 1,38 KB   LINES: 38
@@ -15974,7 +16298,11 @@ Toggle.displayName = TogglePrimitive.Root.displayName;
 
 export { Toggle, toggleVariants };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\toggle-group.tsx
 SIZE: 1,67 KB   LINES: 50
@@ -16029,7 +16357,11 @@ ToggleGroupItem.displayName = ToggleGroupPrimitive.Item.displayName;
 
 export { ToggleGroup, ToggleGroupItem };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\tooltip.tsx
 SIZE: 1,13 KB   LINES: 29
@@ -16063,7 +16395,11 @@ TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\components\ui\use-toast.ts
 SIZE: 82 B   LINES: 4
@@ -16072,7 +16408,11 @@ import { useToast, toast } from "@/hooks/use-toast";
 
 export { useToast, toast };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\contexts\AuthContext.tsx
 SIZE: 2,76 KB   LINES: 113
@@ -16190,7 +16530,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\hooks\use-advanced-analytics.ts
 SIZE: 5,43 KB   LINES: 184
@@ -16379,7 +16723,11 @@ export const useAdvancedAnalytics = () => {
     refetch: fetchAdvancedAnalytics
   }
 }
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\hooks\use-league-index.ts
 SIZE: 1,42 KB   LINES: 49
@@ -16433,7 +16781,11 @@ export const useLeagueIndex = () => {
   return { index, loading, error }
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\hooks\use-local-storage.ts
 SIZE: 1,60 KB   LINES: 48
@@ -16486,7 +16838,11 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 
   return [storedValue, setValue] as const;
 }
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\hooks\use-matches.ts
 SIZE: 6,49 KB   LINES: 204
@@ -16695,7 +17051,11 @@ export const useMatches = (filters: MatchFilters = {}, page: number = 1, pageSiz
     fetchTeams
   }
 }
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\hooks\use-mobile.tsx
 SIZE: 576 B   LINES: 20
@@ -16720,7 +17080,11 @@ export function useIsMobile() {
   return !!isMobile;
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\hooks\use-number-counter.ts
 SIZE: 1,30 KB   LINES: 55
@@ -16780,7 +17144,11 @@ export const useNumberCounter = ({
 
   return { count, startAnimation, isAnimating };
 };
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\hooks\use-toast.ts
 SIZE: 3,84 KB   LINES: 187
@@ -16972,7 +17340,11 @@ function useToast() {
 
 export { useToast, toast };
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\index.css
 SIZE: 12,53 KB   LINES: 442
@@ -17419,7 +17791,11 @@ All colors MUST be HSL format. Uses Geist Sans/Mono fonts with glassmorphism eff
   }
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\integrations\supabase\client.ts
 SIZE: 1,50 KB   LINES: 47
@@ -17471,7 +17847,11 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\integrations\supabase\previewAuthStorage.ts
 SIZE: 4,23 KB   LINES: 89
@@ -17565,7 +17945,11 @@ export function brokeredPreviewStorage() {
   };
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\integrations\supabase\types.ts
 SIZE: 6,27 KB   LINES: 200
@@ -17770,7 +18154,11 @@ export const Constants = {
   },
 } as const
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\lib\engine\forecast.ts
 SIZE: 9,08 KB   LINES: 329
@@ -18104,7 +18492,11 @@ export function forecastFixture(
 
 export const pct = (v: number) => `${(v * 100).toFixed(1)}%`
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\lib\engine\stats.ts
 SIZE: 2,57 KB   LINES: 84
@@ -18193,7 +18585,11 @@ export function scoreGrid(lambdaH: number, lambdaA: number, rho = 0): ScoreGrid 
   return { maxGoals, grid }
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\lib\engine\teams.ts
 SIZE: 853 B   LINES: 29
@@ -18227,7 +18623,11 @@ export function displayNameOf(
   return aliases?.[key] ?? fallback ?? key
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\lib\supabase.ts
 SIZE: 702 B   LINES: 29
@@ -18261,7 +18661,11 @@ export type MatchStats = {
   btts_percentage: number
   comeback_percentage: number
 }
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\lib\utils.ts
 SIZE: 169 B   LINES: 7
@@ -18273,7 +18677,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\main.tsx
 SIZE: 161 B   LINES: 6
@@ -18284,7 +18692,11 @@ import "./index.css";
 
 createRoot(document.getElementById("root")!).render(<App />);
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\pages\Auth.tsx
 SIZE: 5,82 KB   LINES: 163
@@ -18452,7 +18864,11 @@ export default function Auth() {
     </div>
   );
 }
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\pages\Index.tsx
 SIZE: 7,27 KB   LINES: 183
@@ -18640,7 +19056,11 @@ const Index = () => {
 };
 
 export default Index;
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\pages\NotFound.tsx
 SIZE: 721 B   LINES: 25
@@ -18670,14 +19090,22 @@ const NotFound = () => {
 
 export default NotFound;
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: src\vite-env.d.ts
 SIZE: 38 B   LINES: 2
 ========================================================
 /// <reference types="vite/client" />
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: supabase\functions\_shared\cron-auth.ts
 SIZE: 1,05 KB   LINES: 35
@@ -18717,7 +19145,11 @@ export function authenticateCronRequest(request: Request): Response | null {
   return null
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: tailwind.config.ts
 SIZE: 5,26 KB   LINES: 173
@@ -18895,7 +19327,11 @@ export default {
   plugins: [require("tailwindcss-animate"), require("@tailwindcss/container-queries")],
 } satisfies Config;
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: tsconfig.app.json
 SIZE: 635 B   LINES: 32
@@ -18932,7 +19368,11 @@ SIZE: 635 B   LINES: 32
     "src"
   ]
 }
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: tsconfig.json
 SIZE: 396 B   LINES: 24
@@ -18961,7 +19401,11 @@ SIZE: 396 B   LINES: 24
     "strictNullChecks": false
   }
 }
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: tsconfig.node.json
 SIZE: 481 B   LINES: 23
@@ -18989,7 +19433,11 @@ SIZE: 481 B   LINES: 23
   "include": ["vite.config.ts"]
 }
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
 ========================================================
 FILE: vite.config.ts
 SIZE: 454 B   LINES: 19
@@ -19013,4 +19461,8 @@ export default defineConfig(({ mode }) => ({
   },
 }));
 
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> f9824249af653d017a61b1a676c09b0e9b17c153
