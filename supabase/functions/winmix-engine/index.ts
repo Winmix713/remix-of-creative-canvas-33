@@ -279,3 +279,4 @@ Deno.serve(async (request) => {
     return json({ status: 'failed', jobId: job.id, error: message }, 500);
   }
 });
+

@@ -44,14 +44,14 @@ npm install  # Regular install
 cp .env.example .env
 
 # Edit .env with your Supabase credentials
-# Get credentials from: https://supabase.com/dashboard/project/wclutzbojatqtxwlvtab
+# Get credentials from: https://supabase.com/dashboard/project/0ec90b57d6e95fcbda19832f
 nano .env  # or use your preferred editor
 ```
 
 **Required `.env` values:**
 ```bash
-VITE_SUPABASE_PROJECT_ID="wclutzbojatqtxwlvtab"
-VITE_SUPABASE_URL="https://wclutzbojatqtxwlvtab.supabase.co"
+VITE_SUPABASE_PROJECT_ID="0ec90b57d6e95fcbda19832f"
+VITE_SUPABASE_URL="https://0ec90b57d6e95fcbda19832f.supabase.co"
 VITE_SUPABASE_ANON_KEY="<your_anon_key_from_dashboard>"
 VITE_SUPABASE_PUBLISHABLE_KEY="<same_as_anon_key>"
 ```
@@ -248,7 +248,7 @@ npm run test:security
 ### 3.1 Viewing Schema
 
 **Via Supabase Dashboard:**
-1. Go to [Dashboard](https://supabase.com/dashboard/project/wclutzbojatqtxwlvtab)
+1. Go to [Dashboard](https://supabase.com/dashboard/project/0ec90b57d6e95fcbda19832f)
 2. Navigate to **Table Editor**
 3. View tables, columns, relationships
 
@@ -258,7 +258,7 @@ npm run test:security
 
 **Via CLI:**
 ```bash
-supabase db dump --project-ref wclutzbojatqtxwlvtab > schema.sql
+supabase db dump --project-ref 0ec90b57d6e95fcbda19832f > schema.sql
 cat schema.sql | grep "CREATE TABLE"
 ```
 
@@ -266,12 +266,12 @@ cat schema.sql | grep "CREATE TABLE"
 
 **Check Migration Status:**
 ```bash
-supabase migration list --project-ref wclutzbojatqtxwlvtab
+supabase migration list --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **Apply All Pending Migrations:**
 ```bash
-supabase db push --project-ref wclutzbojatqtxwlvtab
+supabase db push --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **Expected Output:**
@@ -295,7 +295,7 @@ nano supabase/migrations/<timestamp>_add_new_feature.sql
 
 **Apply New Migration:**
 ```bash
-supabase db push --project-ref wclutzbojatqtxwlvtab
+supabase db push --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 ### 3.3 Seeding Data
@@ -304,7 +304,7 @@ supabase db push --project-ref wclutzbojatqtxwlvtab
 ```bash
 # Seed data is typically in migration files
 # For manual seeding, use SQL Editor in Dashboard or:
-psql "postgresql://postgres:[PASSWORD]@db.wclutzbojatqtxwlvtab.supabase.co:5432/postgres" -f seed.sql
+psql "postgresql://postgres:[PASSWORD]@db.0ec90b57d6e95fcbda19832f.supabase.co:5432/postgres" -f seed.sql
 ```
 
 **Common Seed Operations:**
@@ -323,13 +323,13 @@ UPDATE user_profiles SET role = 'admin' WHERE email = 'admin@example.com';
 
 **Backup Database:**
 ```bash
-supabase db dump --project-ref wclutzbojatqtxwlvtab > backup_$(date +%Y%m%d).sql
+supabase db dump --project-ref 0ec90b57d6e95fcbda19832f > backup_$(date +%Y%m%d).sql
 ```
 
 **Restore from Backup:**
 ```bash
 # WARNING: This will overwrite existing data
-psql "postgresql://postgres:[PASSWORD]@db.wclutzbojatqtxwlvtab.supabase.co:5432/postgres" < backup_20251105.sql
+psql "postgresql://postgres:[PASSWORD]@db.0ec90b57d6e95fcbda19832f.supabase.co:5432/postgres" < backup_20251105.sql
 ```
 
 **Automated Backups:**
@@ -340,7 +340,7 @@ Supabase automatically backs up daily. Access from:
 
 **Via psql:**
 ```bash
-psql "postgresql://postgres:[PASSWORD]@db.wclutzbojatqtxwlvtab.supabase.co:5432/postgres"
+psql "postgresql://postgres:[PASSWORD]@db.0ec90b57d6e95fcbda19832f.supabase.co:5432/postgres"
 ```
 
 **Via GUI Tools:**
@@ -349,11 +349,75 @@ psql "postgresql://postgres:[PASSWORD]@db.wclutzbojatqtxwlvtab.supabase.co:5432/
 - **Postico (Mac):** Same connection details
 
 **Connection Details:**
-- Host: `db.wclutzbojatqtxwlvtab.supabase.co`
+- Host: `db.0ec90b57d6e95fcbda19832f.supabase.co`
 - Port: `5432` (session mode) or `6543` (transaction mode)
 - Database: `postgres`
 - User: `postgres`
 - Password: Get from Dashboard > Settings > Database
+
+---
+
+## 3.5 Central Engine (Server-Side Computation)
+
+### Architecture
+
+The WinMix central engine runs as a Supabase Edge Function (`winmix-engine`).
+The browser never sends source matches or asks the model to recompute —
+it reads pre-computed predictions from a completed, promoted engine run.
+
+**Flow:**
+1. Data is ingested via `winmix-ingest` into `winmix_matches`.
+2. A data version is sealed.
+3. A parameter snapshot is created with weights, experiments, and history scope.
+4. An engine job is queued (`winmix_engine_jobs`).
+5. The `winmix-engine` function claims the job, runs the pipeline, writes
+   features and predictions, then atomically promotes the run.
+6. The browser startup reads the latest promoted run from `winmix_engine_runs`.
+
+### Engine Bundle
+
+The engine function imports `src/engine-core/index.ts` (the canonical
+computation boundary) via a bundled file at
+`supabase/functions/_shared/engine-core.bundle.ts`. This bundle is generated
+by `npm run build:engine-core` and is automatically regenerated before every
+`npm run build`. It is git-ignored — never commit it manually.
+
+### Version Enforcement (F11)
+
+The engine rejects parameter snapshots whose contract versions don't match
+the executing code:
+- `feature_schema_version` must be 2
+- `pipeline_contract_version` must be 5
+- `model_version` must be `winmix-core-v1`
+
+A mismatch causes the run to fail immediately with a clear error message.
+
+### Atomic Promotion (F12)
+
+The engine promotes a run BEFORE marking it succeeded. If promotion fails,
+the run is marked failed — there is never a "succeeded" run without published
+output.
+
+### Production Startup (F13/F14)
+
+On startup, the browser checks for a promoted engine run. If one exists,
+it loads pre-computed predictions directly. If no promoted run exists yet,
+it falls back to downloading raw CSVs and importing them through the
+browser pipeline.
+
+### Required Secrets
+
+- `SUPABASE_URL` — the project URL
+- `SUPABASE_SERVICE_ROLE_KEY` — server-only key for writing predictions
+- `WINMIX_SERVER_SECRET` — shared secret for authenticating engine requests
+
+### Triggering an Engine Run
+
+```bash
+curl -X POST https://0ec90b57d6e95fcbda19832f.supabase.co/functions/v1/winmix-engine \
+  -H "X-Winmix-Server-Secret: <secret>" \
+  -H "Content-Type: application/json"
+```
 
 ---
 
@@ -363,11 +427,11 @@ psql "postgresql://postgres:[PASSWORD]@db.wclutzbojatqtxwlvtab.supabase.co:5432/
 
 **Via CLI:**
 ```bash
-supabase functions list --project-ref wclutzbojatqtxwlvtab
+supabase functions list --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **Via Dashboard:**
-1. Go to [Dashboard](https://supabase.com/dashboard/project/wclutzbojatqtxwlvtab)
+1. Go to [Dashboard](https://supabase.com/dashboard/project/0ec90b57d6e95fcbda19832f)
 2. Navigate to **Edge Functions**
 3. View deployed functions
 
@@ -410,29 +474,29 @@ supabase functions serve
 
 **Deploy All Functions:**
 ```bash
-supabase functions deploy --project-ref wclutzbojatqtxwlvtab
+supabase functions deploy --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **Deploy Single Function:**
 ```bash
-supabase functions deploy <function-name> --project-ref wclutzbojatqtxwlvtab
+supabase functions deploy <function-name> --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **Example:**
 ```bash
-supabase functions deploy phase9-temporal-decay --project-ref wclutzbojatqtxwlvtab
+supabase functions deploy phase9-temporal-decay --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **Expected Output:**
 ```
 Deploying function: phase9-temporal-decay
   ✓ Function deployed successfully
-  URL: https://wclutzbojatqtxwlvtab.supabase.co/functions/v1/phase9-temporal-decay
+  URL: https://0ec90b57d6e95fcbda19832f.supabase.co/functions/v1/phase9-temporal-decay
 ```
 
 **Verify Deployment:**
 ```bash
-curl https://wclutzbojatqtxwlvtab.supabase.co/functions/v1/phase9-temporal-decay \
+curl https://0ec90b57d6e95fcbda19832f.supabase.co/functions/v1/phase9-temporal-decay \
   -H "Authorization: Bearer <anon_key>"
 ```
 
@@ -440,17 +504,17 @@ curl https://wclutzbojatqtxwlvtab.supabase.co/functions/v1/phase9-temporal-decay
 
 **List Secrets:**
 ```bash
-supabase secrets list --project-ref wclutzbojatqtxwlvtab
+supabase secrets list --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **Set Secret:**
 ```bash
-supabase secrets set API_KEY=your_secret_value --project-ref wclutzbojatqtxwlvtab
+supabase secrets set API_KEY=your_secret_value --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **Unset Secret:**
 ```bash
-supabase secrets unset API_KEY --project-ref wclutzbojatqtxwlvtab
+supabase secrets unset API_KEY --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **Via Dashboard:**
@@ -461,17 +525,17 @@ supabase secrets unset API_KEY --project-ref wclutzbojatqtxwlvtab
 
 **Stream Logs:**
 ```bash
-supabase functions logs <function-name> --project-ref wclutzbojatqtxwlvtab
+supabase functions logs <function-name> --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **Example:**
 ```bash
-supabase functions logs jobs-trigger --project-ref wclutzbojatqtxwlvtab
+supabase functions logs jobs-trigger --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **View Last N Lines:**
 ```bash
-supabase functions logs jobs-trigger --project-ref wclutzbojatqtxwlvtab --tail 100
+supabase functions logs jobs-trigger --project-ref 0ec90b57d6e95fcbda19832f --tail 100
 ```
 
 **Via Dashboard:**
@@ -578,13 +642,13 @@ npm run deploy
 
 **Deploy All Functions:**
 ```bash
-supabase functions deploy --project-ref wclutzbojatqtxwlvtab
+supabase functions deploy --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **Verify Deployment:**
 ```bash
 # Test a public function
-curl https://wclutzbojatqtxwlvtab.supabase.co/functions/v1/get-predictions \
+curl https://0ec90b57d6e95fcbda19832f.supabase.co/functions/v1/get-predictions \
   -H "Content-Type: application/json" \
   -d '{"limit": 10}'
 ```
@@ -593,12 +657,12 @@ curl https://wclutzbojatqtxwlvtab.supabase.co/functions/v1/get-predictions \
 
 **Backup Before Migration:**
 ```bash
-supabase db dump --project-ref wclutzbojatqtxwlvtab > pre_migration_backup.sql
+supabase db dump --project-ref 0ec90b57d6e95fcbda19832f > pre_migration_backup.sql
 ```
 
 **Apply Migrations:**
 ```bash
-supabase db push --project-ref wclutzbojatqtxwlvtab
+supabase db push --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **Verify Tables:**
@@ -627,19 +691,19 @@ SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';
 curl -I https://yourdomain.com/
 
 # Test public function (should work without auth)
-curl https://wclutzbojatqtxwlvtab.supabase.co/functions/v1/get-predictions \
+curl https://0ec90b57d6e95fcbda19832f.supabase.co/functions/v1/get-predictions \
   -H "Content-Type: application/json" \
   -H "apikey: <ANON_KEY>" \
   -d '{"limit": 10}'
 
 # Test protected function WITHOUT auth (should return 401)
-curl https://wclutzbojatqtxwlvtab.supabase.co/functions/v1/analyze-match \
+curl https://0ec90b57d6e95fcbda19832f.supabase.co/functions/v1/analyze-match \
   -H "Content-Type: application/json" \
   -H "apikey: <ANON_KEY>" \
   -d '{"matchId": "123"}'
 
 # Test protected function WITH auth (should work if authorized)
-curl https://wclutzbojatqtxwlvtab.supabase.co/functions/v1/jobs-list \
+curl https://0ec90b57d6e95fcbda19832f.supabase.co/functions/v1/jobs-list \
   -H "Content-Type: application/json" \
   -H "apikey: <ANON_KEY>" \
   -H "Authorization: Bearer <valid_user_token>"
@@ -674,7 +738,7 @@ npx lighthouse https://yourdomain.com --view
   - Anomaly alerts
 
 **Supabase Dashboard:**
-1. [Dashboard](https://supabase.com/dashboard/project/wclutzbojatqtxwlvtab)
+1. [Dashboard](https://supabase.com/dashboard/project/0ec90b57d6e95fcbda19832f)
 2. Navigate to:
    - **API** tab: Request logs
    - **Database** tab: Query performance
@@ -739,10 +803,10 @@ lhci autorun --upload.target=temporary-public-storage
 **Supabase Function Logs:**
 ```bash
 # Stream all logs
-supabase functions logs --project-ref wclutzbojatqtxwlvtab
+supabase functions logs --project-ref 0ec90b57d6e95fcbda19832f
 
 # Filter by function
-supabase functions logs jobs-trigger --project-ref wclutzbojatqtxwlvtab
+supabase functions logs jobs-trigger --project-ref 0ec90b57d6e95fcbda19832f
 ```
 
 **External Log Aggregation (Recommended for Production):**
@@ -840,7 +904,7 @@ TypeError: Failed to fetch
 3. Check CORS configuration
 4. Verify Edge Function is deployed:
    ```bash
-   supabase functions list --project-ref wclutzbojatqtxwlvtab
+   supabase functions list --project-ref 0ec90b57d6e95fcbda19832f
    ```
 
 **Problem: "401 Unauthorized" on protected routes**
@@ -911,7 +975,7 @@ Internal Server Error
 **Solution:**
 1. Check function logs:
    ```bash
-   supabase functions logs <function-name> --project-ref wclutzbojatqtxwlvtab
+   supabase functions logs <function-name> --project-ref 0ec90b57d6e95fcbda19832f
    ```
 2. Look for error messages
 3. Common causes:
@@ -932,11 +996,11 @@ Function <name> not found
 **Solution:**
 1. Verify function is deployed:
    ```bash
-   supabase functions list --project-ref wclutzbojatqtxwlvtab
+   supabase functions list --project-ref 0ec90b57d6e95fcbda19832f
    ```
 2. If not listed, deploy:
    ```bash
-   supabase functions deploy <function-name> --project-ref wclutzbojatqtxwlvtab
+   supabase functions deploy <function-name> --project-ref 0ec90b57d6e95fcbda19832f
    ```
 
 **Problem: Function times out**
@@ -959,7 +1023,7 @@ Error: relation "X" already exists
 **Solution:**
 1. Check migration history:
    ```bash
-   supabase migration list --project-ref wclutzbojatqtxwlvtab
+   supabase migration list --project-ref 0ec90b57d6e95fcbda19832f
    ```
 2. If migration was partially applied, manually fix in SQL Editor
 3. Use `CREATE TABLE IF NOT EXISTS` in migrations
@@ -1042,7 +1106,7 @@ Query takes > 1 second
 - [ ] Review performance metrics (Lighthouse)
 - [ ] Backup database:
    ```bash
-   supabase db dump --project-ref wclutzbojatqtxwlvtab > backup_$(date +%Y%m%d).sql
+   supabase db dump --project-ref 0ec90b57d6e95fcbda19832f > backup_$(date +%Y%m%d).sql
    ```
 
 **Monthly:**
@@ -1087,10 +1151,10 @@ Query takes > 1 second
 **Manual Backup:**
 ```bash
 # Database
-supabase db dump --project-ref wclutzbojatqtxwlvtab > backup.sql
+supabase db dump --project-ref 0ec90b57d6e95fcbda19832f > backup.sql
 
 # Edge Functions (code is in repo, but document secrets separately)
-supabase secrets list --project-ref wclutzbojatqtxwlvtab > secrets_backup.txt
+supabase secrets list --project-ref 0ec90b57d6e95fcbda19832f > secrets_backup.txt
 ```
 
 **Disaster Recovery Procedure:**

@@ -8,7 +8,6 @@
  * A missing or invalid configuration is deliberately visible as `null`: this
  * app must never silently connect to an old project or a different backend.
  */
-const WINMIX_SUPABASE_URL = 'https://yvwnchyedxkajtwwkkqd.supabase.co';
 
 export interface CloudEnv {
   url: string;
@@ -46,8 +45,7 @@ export function resolveCloudEnv(env: Record<string, string | undefined>): CloudE
     (env['VITE_SUPABASE_PUBLISHABLE_KEY'] ?? '').trim() ||
     (env['VITE_SUPABASE_ANON_KEY'] ?? '').trim();
 
-
-  if (envUrl === WINMIX_SUPABASE_URL && isNonEmptyKey(envKey)) {
+  if (envUrl && /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(envUrl) && isNonEmptyKey(envKey)) {
     return Object.freeze({
       url: envUrl,
       anonKey: envKey,

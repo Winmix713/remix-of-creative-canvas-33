@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveCloudEnv, readCloudEnv } from '../utils/cloudConfig';
 import { isCloudTierConfigured } from '../utils/supabaseTier';
 
-const VALID_URL = 'https://yvwnchyedxkajtwwkkqd.supabase.co';
+const VALID_URL = 'https://example.supabase.co';
 const VALID_KEY = 'sb_publishable_test_key_12345';
 const SERVICE_ROLE_KEY = 'sb_secret_test_key_67890';
 
@@ -36,6 +36,7 @@ describe('cloudConfig — feloldási sorrend (F7 fixált)', () => {
     ['üres URL', ''],
     ['szemét', 'nem-egy-url'],
     ['nem http protokoll', 'ftp://staging.example.supabase.co'],
+    ['nem supabase.co', 'https://staging.example.com'],
   ])('érvénytelen vagy idegen env URL (%s) → null (nincs fallback)', (_label, url) => {
     expect(
       resolveCloudEnv({ VITE_SUPABASE_URL: url, VITE_SUPABASE_PUBLISHABLE_KEY: 'valami' }),
