@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08080a">
+  <title>Winmix — H2H Demo (newddesign)</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23130d20'/%3E%3Cpath d='m8 13 6 15 6-11 6 11 6-15' fill='none' stroke='%23c084fc' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--base:#08080a;--surface:rgba(255,255,255,.05);--stroke:rgba(255,255,255,.10);--text:#f8fafc;--muted:#919097;--purple:#a855f7;--purple-soft:#c084fc;--emerald:#34d399;--emerald-soft:#64c4a3;--loss:#665373;--text-dim:#72657f;--text-card:#d7c9e4;--text-value:#d5b4f2;--dashboard-bg:#0c0b10ef;--card-bg:linear-gradient(140deg,rgba(255,255,255,.035),rgba(255,255,255,.01));--card-border:rgba(255,255,255,.06);--shell-border:rgba(255,255,255,.3);--shell-bg:linear-gradient(130deg,rgba(242,228,255,.13),rgba(255,255,255,.05) 35%,rgba(185,144,250,.13));--sidebar-bg:linear-gradient(140deg,rgba(48,40,59,.2),rgba(16,15,20,.4) 70%);color-scheme:dark;font-family:Inter,Arial,sans-serif;font-synthesis:none;font-weight:400}
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:var(--base);color:var(--text);font-size:16px;overflow-x:clip}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:2;opacity:.2;background:repeating-linear-gradient(130deg,transparent 0 6px,rgba(255,255,255,.02) 6px 7px)}
+    button,input,select{font:inherit}
+    button,a,input,select{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+    a{color:inherit;text-decoration:none}
+    button{color:inherit;cursor:pointer;border:0}
+    button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #c084fc;outline-offset:5px}
+    ::selection{background:#a855f766}
+    .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+    .page-rails{position:absolute;inset:0 38px;pointer-events:none;border-inline:1px solid rgba(255,255,255,.04);z-index:3;max-width:1400px;margin:auto}
+
+    /* --- Shell & Sidebar (from newddesign) --- */
+    .studio-stage{position:relative;max-width:1200px;margin:40px auto;scroll-margin-top:100px}
+    .stage-label{display:flex;justify-content:space-between;align-items:center;margin:0 3px 14px;font-size:10px;letter-spacing:1.3px;color:#90869c}
+    .stage-label>span:first-child{display:flex;align-items:center;gap:8px}
+    .stage-label i{width:5px;height:5px;border-radius:100%;background:#bf94e9}
+    .dashboard-shell{position:relative;border-radius:18px;border:1px solid var(--shell-border);padding:7px;background:var(--shell-bg);backdrop-filter:blur(25px)}
+    .dashboard-shell:before{content:"";position:absolute;left:12%;right:12%;height:1px;top:-1px;background:linear-gradient(90deg,transparent,#d8bcff,#fff,#a855f7,transparent)}
+    .dashboard{position:relative;display:flex;background:var(--dashboard-bg);overflow:hidden;border:1px solid rgba(255,255,255,.06);border-radius:11px;min-height:600px}
+    .sidebar{display:flex;flex-direction:column;width:205px;flex-shrink:0;padding:21px 12px 16px;border-right:1px solid rgba(255,255,255,.06);background:var(--sidebar-bg)}
+    .workspace-brand{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:500;padding:0 3px 24px}
+    .workspace-icon{background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.3);border-radius:9px;width:30px;height:32px;display:grid;place-items:center;color:#d2abff;font-weight:700;font-size:18px}
+    .workspace-brand small{display:block;color:#797380;font-size:10px;margin-top:4px;font-weight:400}
+    .sidebar-label{font-size:9px;font-weight:500;letter-spacing:1.3px;color:#6c6675;padding:0 10px 10px}
+    .side-item{display:flex;align-items:center;gap:10px;border-radius:6px;background:transparent;color:#9a94a4;padding:10px;font-size:13px;text-align:left;margin:1px 0;transition:background .2s,color .2s;min-height:37px;width:100%}
+    .side-item:hover{background:rgba(255,255,255,.04);color:#d6cddd}
+    .side-item.selected{background:rgba(168,85,247,.09);color:#d9b5fa;border:1px solid rgba(168,85,247,.14);padding:9px}
+    .sidebar-divider{height:1px;background:rgba(255,255,255,.04);margin:19px 8px}
+    .sidebar-bottom{margin-top:auto;padding-top:26px}
+    .plan-card{border:1px solid rgba(255,255,255,.05);border-radius:7px;padding:12px;background:rgba(255,255,255,.01)}
+    .plan-card>span:first-child{font-size:11px;color:#a19aa9}
+    .plan-card strong{display:block;font-size:14px;font-weight:500;margin-top:7px}
+    .plan-card small{color:#625b6b;font-size:11px;font-weight:400}
+    .usage-bar{height:3px;background:rgba(255,255,255,.05);margin:11px 0}
+    .usage-bar i{display:block;width:67%;height:100%;background:#b174ec;border-radius:3px}
+    .demo-label{font-size:10px;color:#787080}
+    .user-profile{display:flex;align-items:center;gap:9px;font-size:11px;padding:17px 3px 0;background:none;border:0;width:100%;text-align:left}
+    .avatar{display:grid;place-items:center;border:2px solid #1c1920;border-radius:50%;font-size:10px;font-weight:500;color:#f6f2fa;flex-shrink:0;width:33px;height:33px}
+    .user-profile .avatar{width:28px;height:28px;font-size:9px}
+    .a1{background:linear-gradient(135deg,#b2b991,#394735)}
+    .a2{background:linear-gradient(135deg,#cc9479,#634948)}
+    .a3{background:linear-gradient(135deg,#92a4c4,#45455f)}
+    .a4{background:linear-gradient(135deg,#b3a3c9,#584366)}
+    .user-profile small{display:block;font-size:10px;color:#696371;margin-top:4px}
+
+    /* --- Content area --- */
+    .library-content{flex:1;min-width:0;display:flex;flex-direction:column}
+    .library-topline{display:flex;justify-content:space-between;align-items:center;padding:18px 25px 16px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.04);color:#79717f}
+    .breadcrumb-slash{padding:0 10px;color:#4f4759}
+    #breadcrumb-current{color:#b0a7b8}
+    .demo-indicator{font-size:8px;letter-spacing:1px;border:1px solid rgba(255,255,255,.06);padding:4px 6px;border-radius:4px;color:#726979}
+    .library-heading{display:flex;justify-content:space-between;align-items:center;padding:24px 25px 22px}
+    .library-heading h2{font-size:27px;letter-spacing:-1.15px;font-weight:500;margin:0}
+    .title-dot{color:#be88ff}
+    .library-heading p{font-size:13px;color:#817789;margin:7px 0 0;max-width:520px}
+    .content-body{padding:0 25px 25px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#564065 transparent;display:flex;flex-direction:column;gap:14px}
+
+    /* --- Metric Strip (KPI row) --- */
+    .metric-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .metric-strip>div{border-inline-start:1px solid rgba(255,255,255,.08);padding-inline-start:13px;padding-block:4px}
+    .metric-strip>div:first-child{border-inline-start:0;padding-inline-start:0}
+    .metric-strip small{font-size:11px;color:#8f7e9f;display:block}
+    .metric-strip strong{display:block;font-size:25px;color:var(--text-value);font-weight:500;margin-top:7px;letter-spacing:-1px}
+    .metric-strip em{font-style:normal;font-size:12px;color:#927aa4;margin-inline-start:3px}
+    .metric-strip .metric-sub{font-size:10px;color:#787080;margin-top:4px}
+
+    /* --- Data Card --- */
+    .data-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:8px;padding:17px;min-width:0}
+    .data-card h3{font-weight:500;font-size:14px;letter-spacing:-.3px;margin:0 0 13px;color:var(--text-card)}
+    .card-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+    .card-heading>span{font-size:11px;color:#9e82b5}
+    .panel-note{font-size:9px;letter-spacing:.9px;color:#7e6b90}
+
+    /* --- Analytics Grid --- */
+    .analytics-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .analytics-grid .data-card{margin:0}
+    .analytics-grid .wide{grid-column:1/-1}
+
+    /* --- Chip Tabs --- */
+    .chip-tabs{display:flex;gap:5px;overflow-x:auto;scrollbar-width:thin;padding-bottom:4px;margin-bottom:12px}
+    .chip-tabs button{flex-shrink:0;font-size:12px;color:#9a85ab;border:1px solid rgba(255,255,255,.06);border-radius:5px;background:rgba(255,255,255,.02);padding:8px 12px;transition:all .2s}
+    .chip-tabs button.active{background:rgba(168,85,247,.1);color:#d8b3fc;border-color:rgba(168,85,247,.24)}
+    .chip-tabs button:hover{color:#d8b3fc}
+
+    /* --- Team Selector --- */
+    .team-selector-grid{display:grid;grid-template-columns:1fr auto 1fr auto;gap:12px;align-items:end}
+    .team-label{display:flex;align-items:center;gap:9px;font-size:12px;color:#9984aa;margin-bottom:8px}
+    .team-monogram{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:rgba(168,85,247,.1);color:#d2abff;font-size:11px;font-weight:600;flex-shrink:0}
+    .team-select-box{border:1px solid rgba(168,85,247,.16);background:rgba(168,85,247,.05);border-radius:8px;padding:14px}
+    .team-select-box.away{border-color:rgba(52,211,153,.16);background:rgba(52,211,153,.04)}
+    .team-select-box select{width:100%;background:#17121e;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:8px;color:#c8b5d8;font-size:13px;outline:none}
+    .team-select-box select:focus{border-color:var(--purple)}
+    .vs-badge{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;border:1px solid rgba(168,85,247,.2);background:rgba(168,85,247,.08);color:var(--purple-soft);font-size:14px;font-weight:600}
+
+    /* --- Run Button --- */
+    .btn-run{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border-radius:8px;font-size:13px;font-weight:500;border:1px solid rgba(168,85,247,.3);background:linear-gradient(180deg,#ab5df5,#8b3ee1);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 0 20px rgba(168,85,247,.12);transition:transform .2s,opacity .2s;white-space:nowrap}
+    .btn-run:hover{transform:translateY(-1px);opacity:.92}
+    .btn-run:disabled{opacity:.4;cursor:default;transform:none}
+    .btn-ghost{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#9984aa;background:transparent;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:8px 12px;transition:all .2s}
+    .btn-ghost:hover{background:rgba(255,255,255,.06);color:#d6cddd}
+
+    /* --- Status bar --- */
+    .status-bar{display:flex;align-items:center;gap:8px;border-radius:6px;padding:10px 14px;font-size:12px;font-weight:500;border:1px solid rgba(168,85,247,.2);background:rgba(168,85,247,.07);color:#d8b3fc}
+
+    /* --- Matchup Header --- */
+    .matchup-grid{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px}
+    .matchup-side{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;min-width:0}
+    .matchup-side .team-badge{display:grid;place-items:center;width:49px;height:55px;border-radius:12px 12px 17px 17px;border:1px solid rgba(255,255,255,.1);font-size:16px;font-weight:600;color:#fff}
+    .matchup-side .team-badge.home{background:linear-gradient(140deg,#5c906d,#152c20 45%,#a0ae6b);color:#dcefb0}
+    .matchup-side .team-badge.away{background:linear-gradient(135deg,#6c326e,#111526 46%,#b45575)}
+    .matchup-side strong{font-size:15px;font-weight:500;color:#e0ccef}
+    .matchup-side small{font-size:10px;color:#8b759c}
+    .matchup-score{text-align:center}
+    .matchup-score .score-line{font-size:36px;letter-spacing:2px;font-weight:500;color:#e0ccef}
+    .matchup-score .score-line span{color:#8b759c;margin:0 4px}
+    .matchup-score .score-label{font-size:9px;letter-spacing:1px;color:#8b759c;margin-top:4px}
+    .weight-chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;border:1px solid rgba(168,85,247,.2);background:rgba(168,85,247,.1);color:#d8b3fc;padding:3px 8px;border-radius:4px;margin-top:4px}
+
+    /* --- Balance Bar --- */
+    .balance-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,.06);margin-top:14px}
+    .balance-bar .seg-home{background:#a374cf}
+    .balance-bar .seg-draw{background:#3a3a4a}
+    .balance-bar .seg-away{background:#4b9b83}
+    .balance-meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:11px}
+    .balance-meta .verdict{font-weight:600;color:#d8cde1}
+    .balance-meta .detail{font-family:monospace;color:#8b759c}
+
+    /* --- Form badges --- */
+    .form-row{display:flex;align-items:center;gap:6px;margin-top:6px}
+    .form-badge{display:grid;place-items:center;width:24px;height:24px;border-radius:4px;font-size:10px;font-weight:600;border:1px solid transparent}
+    .form-GY{border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.1);color:var(--emerald)}
+    .form-D{border-color:rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#91839f}
+    .form-V{border-color:rgba(255,56,28,.3);background:rgba(255,56,28,.1);color:#ff6b4a}
+
+    /* --- Stat Grid (4 cols) --- */
+    .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+    .stat-grid>div{min-width:0}
+    .stat-grid dt{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#8b759c;font-family:monospace}
+    .stat-grid dd{margin:4px 0 0;font-size:14px;font-weight:700;font-family:monospace;color:#e0ccef}
+    .stat-grid dd.purple{color:var(--purple-soft)}
+
+    /* --- Radar Chart --- */
+    .radar-chart{max-width:260px;margin:0 auto}
+    .radar-chart svg{width:100%;height:192px;display:block}
+    .chart-legend{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;font-size:11px;color:#a08cae;margin-top:8px}
+    .chart-legend span{display:flex;align-items:center;gap:5px}
+    .chart-legend i{display:inline-block;width:6px;height:6px;border-radius:50%}
+    .legend-purple{background:#a574de}
+    .legend-emerald{background:#3b9f85}
+
+    /* --- Donut Chart --- */
+    .donut-wrap{padding:8px}
+    .donut{width:130px;height:130px;border-radius:50%;padding:14px;margin:0 auto 14px;transform:rotate(-90deg)}
+    .donut>div{height:100%;width:100%;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#111016;transform:rotate(90deg)}
+    .donut strong{font-size:26px;font-weight:500;color:#d9c9e6}
+    .donut small{font-size:8px;color:#836d94;letter-spacing:1px;margin-top:3px}
+
+    /* --- Stat Bars (comparison) --- */
+    .stat-bars{display:grid;gap:14px;padding-block:4px}
+    .stat-comparison>div:first-child{display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px;color:#93809f}
+    .stat-comparison strong{font-size:12px;font-weight:500}
+    .stat-comparison strong:first-child{color:#c4a4e0}
+    .stat-comparison strong:last-child{color:#6bb79f}
+    .double-bar{height:4px;display:flex;gap:3px}
+    .double-bar i{height:100%;display:block;background:#a374cf;border-radius:3px}
+    .double-bar b{height:100%;display:block;background:#4b9b83;border-radius:3px}
+
+    /* --- Search & Sort --- */
+    .toolbar-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:12px}
+    .search-field{display:flex;align-items:center;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:6px;padding:8px 10px;gap:6px;color:#72687f;min-width:200px}
+    .search-field svg{width:14px;height:14px;flex-shrink:0}
+    .search-field input{min-width:0;flex:1;background:none;border:0;color:#c4b9d0;font-size:12px;outline:none}
+    .search-field input::placeholder{color:#716779}
+    .sort-group{display:flex;gap:4px;border:1px solid rgba(255,255,255,.06);border-radius:6px;padding:3px}
+    .sort-group button{font-size:11px;color:#9a85ab;border:0;border-radius:4px;background:transparent;padding:6px 10px;transition:all .2s}
+    .sort-group button.active{background:rgba(168,85,247,.12);color:#d8b3fc}
+
+    /* --- Track Table --- */
+    .track-table{width:100%;border-collapse:collapse;text-align:left}
+    .track-table th{font-size:10px;color:#72657f;letter-spacing:.8px;font-weight:400;height:37px;border-bottom:1px solid rgba(255,255,255,.06);padding:0 8px;white-space:nowrap}
+    .track-table td{font-size:12px;color:#91839f;border-bottom:1px solid rgba(255,255,255,.03);padding-block:10px;padding-inline:8px}
+    .track-table tbody tr{transition:background .2s}
+    .track-table tbody tr:hover{background:rgba(255,255,255,.03)}
+    .track-table tbody tr.active{background:linear-gradient(90deg,rgba(168,85,247,.06),rgba(168,85,247,.02))}
+    .track-table .num-col{width:38px;text-align:center;color:#73667f}
+    .track-table .pair-cell{font-weight:500;color:#d8cde1}
+    .track-table .pair-cell .vs{font-size:10px;color:#796b89;font-weight:400;padding:0 4px}
+    .track-table .right{text-align:right}
+    .track-table .center{text-align:center}
+    .visibility-tag{font-size:9px;border:1px solid rgba(215,183,255,.1);background:rgba(180,130,227,.07);color:#aa8cc5;padding:3px 6px;border-radius:4px}
+    .visibility-tag.green{color:#64b79c;background:rgba(16,185,129,.07);border-color:rgba(16,185,129,.1)}
+    .expand-btn{display:grid;place-items:center;width:24px;height:24px;border-radius:4px;color:#73667f;transition:all .2s;background:transparent}
+    .expand-btn:hover{background:rgba(255,255,255,.06);color:#d3a7ff}
+    .expand-btn svg{width:14px;height:14px;transition:transform .2s}
+    .expand-btn.open svg{transform:rotate(180deg)}
+
+    /* --- Marquee Switch --- */
+    .marquee-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid rgba(255,255,255,.06);padding-top:14px;margin-top:14px}
+    .marquee-left{display:flex;align-items:center;gap:8px}
+    .switch{position:relative;width:36px;height:20px;border-radius:50%;border:1px solid rgba(168,85,247,.3);background:rgba(168,85,247,.2);transition:all .2s}
+    .switch.off{border-color:rgba(255,255,255,.1);background:rgba(255,255,255,.06)}
+    .switch .knob{position:absolute;top:2px;width:14px;height:14px;border-radius:50%;background:#f8fafc;transition:left .2s;left:18px}
+    .switch.off .knob{left:2px}
+    .marquee-label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#8b759c;font-family:monospace}
+
+    /* --- Match list (expanded) --- */
+    .match-list{padding:8px 0}
+    .match-list-item{display:flex;flex-wrap:items-center;gap:10px;padding:8px 12px;border-radius:6px;background:rgba(255,255,255,.02);margin-bottom:4px;font-size:12px;align-items:center}
+    .match-list-item .date{font-family:monospace;color:#73677f;font-size:11px}
+    .match-list-item .score{font-family:monospace;font-weight:600;color:#d8cde1}
+    .match-list-item .season{font-size:10px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.04);color:#91839f;padding:2px 6px;border-radius:3px}
+    .match-list-item .btts-yes{font-size:9px;color:#64b79c;border:1px solid rgba(52,211,153,.15);background:rgba(52,211,153,.08);padding:2px 5px;border-radius:3px}
+    .match-list-item .btts-no{font-size:9px;color:#91839f;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.03);padding:2px 5px;border-radius:3px}
+    .match-list-item .goals{font-family:monospace;color:#73667f;font-size:11px}
+
+    /* --- Section heading --- */
+    .section-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:6px}
+    .section-heading h3{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#a18cab;font-weight:500;margin:0}
+    .section-heading .hint{font-size:11px;color:#817789}
+
+    /* --- Responsive --- */
+    @media(max-width:1100px){.sidebar{width:180px}.team-selector-grid{grid-template-columns:1fr;gap:8px}.vs-badge{display:none}.metric-strip{grid-template-columns:repeat(2,1fr)}.analytics-grid{grid-template-columns:1fr}.stat-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:800px){.sidebar{display:none}.library-topline,.library-heading,.content-body{padding-inline:18px}.matchup-grid{grid-template-columns:1fr;gap:10px}.matchup-side{flex-direction:row;justify-content:center}.track-table th:nth-child(4),.track-table td:nth-child(4),.track-table th:nth-child(6),.track-table td:nth-child(6),.track-table th:nth-child(8),.track-table td:nth-child(8){display:none}}
+    @media(max-width:600px){.metric-strip{grid-template-columns:1fr 1fr}.stat-grid{grid-template-columns:1fr 1fr}.matchup-score .score-line{font-size:28px}.toolbar-row{flex-direction:column;align-items:stretch}.search-field{min-width:0}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <a href="#main" class="skip-link" style="position:fixed;top:20px;left:20px;padding:12px;background:#fff;color:#000;z-index:1000;border-radius:6px;font-size:14px">Ugrás a tartalomra</a>
+  <div class="page-rails" aria-hidden="true"></div>
+
+  <div class="studio-stage" id="main">
+    <div class="stage-label">
+      <span><i></i> H2H — EGYMÁS ELLENI MÉRKŐZÉSEK</span>
+      <span>NEWDESIGN DEMO</span>
+    </div>
+
+    <div class="dashboard-shell">
+      <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar" aria-label="Navigáció">
+          <div class="workspace-brand">
+            <span class="workspace-icon">W</span>
+            <div>Winmix Analytics<small>Virtuális foci munkaállomás</small></div>
+          </div>
+          <div class="sidebar-label">MUNKÁLLOMÁS</div>
+          <button class="side-item">Stúdió</button>
+          <button class="side-item">Prediktor</button>
+          <button class="side-item">Liga Analizátor</button>
+          <button class="side-item selected">H2H</button>
+          <button class="side-item">Pipeline Audit</button>
+          <button class="side-item">Operációk</button>
+          <button class="side-item">Szelvények</button>
+          <div class="sidebar-divider"></div>
+          <button class="side-item">Beállítások</button>
+          <div class="sidebar-bottom">
+            <div class="plan-card">
+              <span>Adat lefedettség</span>
+              <strong>8 <small>/ 12 szezon</small></strong>
+              <div class="usage-bar"><i></i></div>
+              <span class="demo-label">Demó adathalmaz · 22 Sep</span>
+            </div>
+            <button class="user-profile">
+              <span class="avatar a4">WA</span>
+              <span>Winmix Analitikus<small>Budapest, Hungary</small></span>
+            </button>
+          </div>
+        </aside>
+
+        <!-- Content -->
+        <div class="library-content">
+          <div class="library-topline">
+            <span>Winmix <span class="breadcrumb-slash">/</span> <span id="breadcrumb-current">H2H</span></span>
+            <span class="demo-indicator">DEMO ADAT</span>
+          </div>
+
+          <div class="library-heading">
+            <div>
+              <h2>H2H — egymás elleni mérkőzések<span class="title-dot">.</span></h2>
+              <p>Minden irányított csapatpár (Hazai → Vendég) összes találkozója egy helyen, kanonizált csapatnevek szerint csoportosítva.</p>
+            </div>
+          </div>
+
+          <div class="content-body">
+
+            <!-- KPI Metric Strip -->
+            <div class="data-card">
+              <div class="metric-strip">
+                <div>
+                  <small>Egyedi csapatpárok</small>
+                  <strong>24</strong>
+                  <div class="metric-sub">16 csapat az aktív ligában</div>
+                </div>
+                <div>
+                  <small>Összes H2H mérkőzés</small>
+                  <strong>86</strong>
+                  <div class="metric-sub">Betöltött szezonok összesen</div>
+                </div>
+                <div>
+                  <small>Átlag gól / meccs</small>
+                  <strong>2.84</strong>
+                  <div class="metric-sub">Az összes H2H párra vetítve</div>
+                </div>
+                <div>
+                  <small>Legtöbbször játszott</small>
+                  <strong style="font-size:15px">Barcelona – Dortmund</strong>
+                  <div class="metric-sub">7 mérkőzés · történeti maximum</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Team Pair Selector -->
+            <div class="data-card">
+              <div class="card-heading">
+                <h3>Csapatpár kiválasztása</h3>
+                <button class="btn-ghost">Szűrő törlése</button>
+              </div>
+              <p style="font-size:13px;color:#92819f;margin:0 0 16px;line-height:1.6">Válaszd ki a hazai és a vendég csapatot. Ugyanaz a csapat a két oldalon nem jelölhető ki.</p>
+
+              <div class="team-selector-grid">
+                <div class="team-select-box">
+                  <div class="team-label">
+                    <span class="team-monogram">BC</span>
+                    Hazai csapat
+                  </div>
+                  <select>
+                    <option>Barcelona</option>
+                    <option>Real Madrid</option>
+                    <option>Liverpool</option>
+                    <option>Arsenal</option>
+                    <option>Bayern München</option>
+                  </select>
+                </div>
+
+                <div style="display:grid;place-items:center;padding-bottom:14px">
+                  <span class="vs-badge">VS</span>
+                </div>
+
+                <div class="team-select-box away">
+                  <div class="team-label">
+                    <span class="team-monogram" style="background:rgba(52,211,153,.1);color:#64c4a3">DO</span>
+                    Vendég csapat
+                  </div>
+                  <select>
+                    <option>Dortmund</option>
+                    <option>Atlético</option>
+                    <option>Man. City</option>
+                    <option>Juventus</option>
+                    <option>Inter</option>
+                  </select>
+                </div>
+
+                <button class="btn-run">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg>
+                  Futtatás
+                </button>
+              </div>
+
+              <div class="status-bar" style="margin-top:16px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+                Barcelona (H) – Dortmund (V) · 7 találkozó
+              </div>
+            </div>
+
+            <!-- Matchup Header -->
+            <div class="section-heading">
+              <h3>Összecsapás mérlege</h3>
+              <span class="hint">Kizárólag a kiválasztott hazai → vendég irány</span>
+            </div>
+
+            <div class="data-card" style="padding:20px">
+              <!-- Two sides -->
+              <div class="matchup-grid">
+                <div class="matchup-side">
+                  <span class="team-badge home">BC</span>
+                  <strong>Barcelona</strong>
+                  <small>4 győzelem</small>
+                  <span class="weight-chip">Súly: 1.0</span>
+                </div>
+
+                <div class="matchup-score">
+                  <div class="score-line">4<span>–</span>1<span>–</span>2</div>
+                  <div class="score-label">GY / D / V</div>
+                </div>
+
+                <div class="matchup-side">
+                  <span class="team-badge away">DO</span>
+                  <strong>Dortmund</strong>
+                  <small>2 győzelem</small>
+                  <span class="weight-chip">Súly: 0.8</span>
+                </div>
+              </div>
+
+              <!-- Balance bar -->
+              <div class="balance-bar">
+                <span class="seg-home" style="width:57%"></span>
+                <span class="seg-draw" style="width:14%"></span>
+                <span class="seg-away" style="width:29%"></span>
+              </div>
+              <div class="balance-meta">
+                <span class="verdict">Barcelona vezet</span>
+                <span class="detail">7 találkozó · 12–8 gólarány</span>
+              </div>
+
+              <!-- Form + Stats -->
+              <div style="display:flex;flex-direction:column;gap:16px;border-top:1px solid rgba(255,255,255,.06);padding-top:14px;margin-top:14px">
+                <div>
+                  <div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#8b759c;font-family:monospace;margin-bottom:6px">Barcelona — utolsó 5 találkozó</div>
+                  <div class="form-row">
+                    <span class="form-badge form-GY">GY</span>
+                    <span class="form-badge form-GY">GY</span>
+                    <span class="form-badge form-D">D</span>
+                    <span class="form-badge form-GY">GY</span>
+                    <span class="form-badge form-V">V</span>
+                  </div>
+                </div>
+
+                <dl class="stat-grid">
+                  <div><dt>Átl. gól</dt><dd class="purple">2.86</dd></div>
+                  <div><dt>Össz. gól</dt><dd>20</dd></div>
+                  <div><dt>BTTS</dt><dd>71%</dd></div>
+                  <div><dt>Over 2.5</dt><dd>57%</dd></div>
+                </dl>
+              </div>
+
+              <!-- Marquee toggle -->
+              <div class="marquee-row">
+                <div class="marquee-left">
+                  <button class="switch" aria-label="Rangadó jelölő"><span class="knob"></span></button>
+                  <span class="marquee-label">Rangadó (büntetőpont)</span>
+                </div>
+                <span style="font-size:11px;color:#8b759c">Kockázat: alacsony — a címke önmagában nem büntet.</span>
+              </div>
+
+              <!-- Last meeting -->
+              <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;margin-top:14px;font-size:11px;color:#8b759c">
+                <span style="font-family:monospace;text-transform:uppercase;letter-spacing:1px">Legutóbb</span>
+                <span style="color:#d8cde1"> Barcelona <b>2–1</b> Dortmund</span>
+                · 2025/26 · 2026-03-14
+              </div>
+            </div>
+
+            <!-- Analytics Grid: Radar + Donut + StatBars -->
+            <div class="analytics-grid">
+              <!-- Radar -->
+              <div class="data-card">
+                <h3>Csapat összehasonlítás</h3>
+                <div class="radar-chart" role="img" aria-label="Csapat összehasonlítás: labdabirtoklás, lövések, passzok, szögletek, védések, támadások">
+                  <svg viewBox="0 0 260 215">
+                    <!-- Grid rings -->
+                    <polygon points="130,79 173.7,104 173.7,154 130,179 86.3,154 86.3,104" fill="none" stroke="rgba(255,255,255,0.04)"/>
+                    <polygon points="130,54 197.4,93 197.4,169 130,204 62.6,169 62.6,93" fill="none" stroke="rgba(255,255,255,0.04)"/>
+                    <polygon points="130,29 221.1,82 221.1,184 130,229 38.9,184 38.9,82" fill="none" stroke="rgba(255,255,255,0.04)"/>
+                    <polygon points="130,4 244.8,71 244.8,199 130,254 15.2,199 15.2,71" fill="none" stroke="rgba(255,255,255,0.04)"/>
+                    <!-- Spokes -->
+                    <path d="M130 104L130 4M130 104L244.8 71M130 104L244.8 199M130 104L130 254M130 104L15.2 199M130 104L15.2 71" stroke="rgba(255,255,255,0.04)"/>
+                    <!-- Home polygon (purple) -->
+                    <polygon points="130,34 218,78 200,180 130,220 55,170 48,82" fill="rgba(168,85,247,0.14)" stroke="#be90ea" stroke-width="2"/>
+                    <!-- Away polygon (emerald) -->
+                    <polygon points="130,54 195,90 210,170 130,195 72,160 62,95" fill="rgba(16,185,129,0.08)" stroke="#61bda1" stroke-width="2"/>
+                    <!-- Labels -->
+                    <g fill="#94859f" font-size="9" text-anchor="middle" font-family="Inter">
+                      <text x="130" y="-2">LABDA</text>
+                      <text x="245" y="69">LÖVÉSEK</text>
+                      <text x="247" y="207">PASSZOK</text>
+                      <text x="130" y="270">SZÖGLETEK</text>
+                      <text x="18" y="207">VÉDÉSEK</text>
+                      <text x="18" y="69">TÁMADÁSOK</text>
+                    </g>
+                  </svg>
+                </div>
+                <div class="chart-legend">
+                  <span><i class="legend-purple"></i>Barcelona</span>
+                  <span><i class="legend-emerald"></i>Dortmund</span>
+                </div>
+              </div>
+
+              <!-- Donut: W/D/L -->
+              <div class="data-card">
+                <h3>Barcelona — Forma (10 meccs)</h3>
+                <div class="donut-wrap">
+                  <div class="donut" style="background:conic-gradient(#a877da 0 60%,#58b99b 60% 80%,#53475f 80% 100%)">
+                    <div>
+                      <strong>10</strong>
+                      <small>MÉRKŐZÉS</small>
+                    </div>
+                  </div>
+                  <div class="chart-legend">
+                    <span><i class="legend-purple"></i>6 Győzelem</span>
+                    <span><i class="legend-emerald"></i>2 Döntetlen</span>
+                    <span><i style="background:#665373"></i>2 Vereség</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Stat Bars: match stats -->
+              <div class="data-card">
+                <h3>Mérkőzés statisztika (átlag)</h3>
+                <div class="stat-bars">
+                  <div class="stat-comparison">
+                    <div><strong>1.7</strong><span>Gól</span><strong>1.1</strong></div>
+                    <div class="double-bar"><i style="width:61%"></i><b style="width:39%"></b></div>
+                  </div>
+                  <div class="stat-comparison">
+                    <div><strong>14</strong><span>Lövés</span><strong>11</strong></div>
+                    <div class="double-bar"><i style="width:56%"></i><b style="width:44%"></b></div>
+                  </div>
+                  <div class="stat-comparison">
+                    <div><strong>7</strong><span>Kapura</span><strong>5</strong></div>
+                    <div class="double-bar"><i style="width:58%"></i><b style="width:42%"></b></div>
+                  </div>
+                  <div class="stat-comparison">
+                    <div><strong>6</strong><span>Szöglet</span><strong>4</strong></div>
+                    <div class="double-bar"><i style="width:60%"></i><b style="width:40%"></b></div>
+                  </div>
+                  <div class="stat-comparison">
+                    <div><strong>485</strong><span>Passz</span><strong>412</strong></div>
+                    <div class="double-bar"><i style="width:54%"></i><b style="width:46%"></b></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- BTTS & Over breakdown -->
+              <div class="data-card">
+                <h3>Piaci eloszlás</h3>
+                <div class="stat-bars">
+                  <div class="stat-comparison">
+                    <div><strong style="color:var(--purple-soft)">71%</strong><span>BTTS</span><strong>29%</strong></div>
+                    <div class="double-bar"><i style="width:71%"></i><b style="width:29%;background:#665373"></b></div>
+                  </div>
+                  <div class="stat-comparison">
+                    <div><strong style="color:var(--purple-soft)">57%</strong><span>Over 2.5</span><strong>43%</strong></div>
+                    <div class="double-bar"><i style="width:57%"></i><b style="width:43%;background:#665373"></b></div>
+                  </div>
+                  <div class="stat-comparison">
+                    <div><strong style="color:var(--purple-soft)">43%</strong><span>Over 3.5</span><strong>57%</strong></div>
+                    <div class="double-bar"><i style="width:43%"></i><b style="width:57%;background:#665373"></b></div>
+                  </div>
+                </div>
+                <div style="font-size:10px;color:#787080;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.04)">7 találkozó alapján · Barcelona (H) irány</div>
+              </div>
+            </div>
+
+            <!-- Marquee Rounds Table -->
+            <div class="section-heading">
+              <h3>Rangadó nyilvántartás</h3>
+              <span class="hint">Az aktuális és a korábbi körök jelölései</span>
+            </div>
+
+            <div class="data-card" style="padding:0;overflow:hidden">
+              <div style="overflow-x:auto">
+                <table class="track-table">
+                  <thead>
+                    <tr>
+                      <th>Kör</th>
+                      <th>Liga</th>
+                      <th>Hazai → Vendég</th>
+                      <th class="right">Rögzítve</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="active">
+                      <td>22. forduló <span class="visibility-tag green" style="margin-left:6px">aktuális</span></td>
+                      <td>Virtual La Liga</td>
+                      <td>Barcelona → Dortmund</td>
+                      <td class="right">2026-09-22</td>
+                    </tr>
+                    <tr>
+                      <td>21. forduló</td>
+                      <td>Virtual Premier</td>
+                      <td>Liverpool → Arsenal</td>
+                      <td class="right">2026-09-15</td>
+                    </tr>
+                    <tr>
+                      <td>20. forduló</td>
+                      <td>Virtual Bundesliga</td>
+                      <td>Bayern → Leipzig</td>
+                      <td class="right">2026-09-08</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Pair Table with Search & Sort -->
+            <div class="section-heading">
+              <h3>Csapatpárok — kumulatív statisztika</h3>
+              <span class="hint">Egyirányú bontás · kattints a sorba a mérkőzéslistáért</span>
+            </div>
+
+            <div class="data-card" style="padding:16px">
+              <!-- Toolbar -->
+              <div class="toolbar-row">
+                <label class="search-field">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
+                  <input type="search" placeholder="Szűrés csapatnév alapján…" aria-label="Szűrés csapatnév alapján">
+                </label>
+                <div class="sort-group" aria-label="Rendezés">
+                  <button class="active">Meccsszám</button>
+                  <button>Gólszám</button>
+                </div>
+              </div>
+
+              <!-- Table -->
+              <div style="overflow-x:auto">
+                <table class="track-table">
+                  <thead>
+                    <tr>
+                      <th style="width:28px"></th>
+                      <th>Csapatpár (Hazai – Vendég)</th>
+                      <th class="right">Meccs</th>
+                      <th class="center">Forma</th>
+                      <th class="center">GY/D/V</th>
+                      <th class="right">Gólok</th>
+                      <th class="right">Átl.</th>
+                      <th class="right">BTTS</th>
+                      <th class="right">O2.5</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pair-rows">
+                    <tr class="active">
+                      <td><button class="expand-btn open" aria-label="Részletek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></td>
+                      <td class="pair-cell">Barcelona <span class="vs">vs</span> Dortmund</td>
+                      <td class="right" style="color:#c4a4e0;font-weight:700">7</td>
+                      <td class="center" style="font-size:11px">GY-GY-D-GY-V</td>
+                      <td class="center">4 / 1 / 2</td>
+                      <td class="right">12–8 (Σ20)</td>
+                      <td class="right">2.86</td>
+                      <td class="right" style="color:#64b79c">71%</td>
+                      <td class="right" style="color:#c4a4e0">57%</td>
+                    </tr>
+                    <tr>
+                      <td colspan="9" style="padding:0;background:transparent">
+                        <div class="match-list">
+                          <div class="match-list-item">
+                            <span class="date">2026-03-14</span>
+                            <span class="score">Barcelona 2–1 Dortmund</span>
+                            <span class="season">2025/26</span>
+                            <span class="goals">Σ 3</span>
+                            <span class="btts-yes">BTTS</span>
+                          </div>
+                          <div class="match-list-item">
+                            <span class="date">2025-11-02</span>
+                            <span class="score">Barcelona 3–1 Dortmund</span>
+                            <span class="season">2025/26</span>
+                            <span class="goals">Σ 4</span>
+                            <span class="btts-yes">BTTS</span>
+                          </div>
+                          <div class="match-list-item">
+                            <span class="date">2025-04-19</span>
+                            <span class="score">Barcelona 1–2 Dortmund</span>
+                            <span class="season">2024/25</span>
+                            <span class="goals">Σ 3</span>
+                            <span class="btts-yes">BTTS</span>
+                          </div>
+                          <div class="match-list-item">
+                            <span class="date">2025-02-08</span>
+                            <span class="score">Barcelona 2–2 Dortmund</span>
+                            <span class="season">2024/25</span>
+                            <span class="goals">Σ 4</span>
+                            <span class="btts-yes">BTTS</span>
+                          </div>
+                          <div class="match-list-item">
+                            <span class="date">2024-10-27</span>
+                            <span class="score">Barcelona 1–0 Dortmund</span>
+                            <span class="season">2024/25</span>
+                            <span class="goals">Σ 1</span>
+                            <span class="btts-no">BTTS ✘</span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><button class="expand-btn" aria-label="Részletek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></td>
+                      <td class="pair-cell">Liverpool <span class="vs">vs</span> Arsenal</td>
+                      <td class="right" style="color:#c4a4e0;font-weight:700">6</td>
+                      <td class="center" style="font-size:11px">GY-D-GY-GY-D</td>
+                      <td class="center">3 / 2 / 1</td>
+                      <td class="right">9–5 (Σ14)</td>
+                      <td class="right">2.33</td>
+                      <td class="right" style="color:#91839f">50%</td>
+                      <td class="right" style="color:#91839f">33%</td>
+                    </tr>
+                    <tr>
+                      <td><button class="expand-btn" aria-label="Részletek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></td>
+                      <td class="pair-cell">Bayern <span class="vs">vs</span> Leipzig</td>
+                      <td class="right" style="color:#c4a4e0;font-weight:700">5</td>
+                      <td class="center" style="font-size:11px">GY-GY-V-GY-GY</td>
+                      <td class="center">4 / 0 / 1</td>
+                      <td class="right">11–4 (Σ15)</td>
+                      <td class="right">3.00</td>
+                      <td class="right" style="color:#64b79c">60%</td>
+                      <td class="right" style="color:#c4a4e0">80%</td>
+                    </tr>
+                    <tr>
+                      <td><button class="expand-btn" aria-label="Részletek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></td>
+                      <td class="pair-cell">Real Madrid <span class="vs">vs</span> Atlético</td>
+                      <td class="right" style="color:#c4a4e0;font-weight:700">5</td>
+                      <td class="center" style="font-size:11px">D-GY-D-V-GY</td>
+                      <td class="center">2 / 2 / 1</td>
+                      <td class="right">7–6 (Σ13)</td>
+                      <td class="right">2.60</td>
+                      <td class="right" style="color:#64b79c">60%</td>
+                      <td class="right" style="color:#91839f">40%</td>
+                    </tr>
+                    <tr>
+                      <td><button class="expand-btn" aria-label="Részletek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></td>
+                      <td class="pair-cell">Juventus <span class="vs">vs</span> Inter</td>
+                      <td class="right" style="color:#c4a4e0;font-weight:700">4</td>
+                      <td class="center" style="font-size:11px">D-D-GY-V</td>
+                      <td class="center">1 / 2 / 1</td>
+                      <td class="right">4–4 (Σ8)</td>
+                      <td class="right">2.00</td>
+                      <td class="right" style="color:#91839f">25%</td>
+                      <td class="right" style="color:#91839f">25%</td>
+                    </tr>
+                    <tr>
+                      <td><button class="expand-btn" aria-label="Részletek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></td>
+                      <td class="pair-cell">Man. City <span class="vs">vs</span> Man. United</td>
+                      <td class="right" style="color:#c4a4e0;font-weight:700">4</td>
+                      <td class="center" style="font-size:11px">GY-GY-GY-V</td>
+                      <td class="center">3 / 0 / 1</td>
+                      <td class="right">8–3 (Σ11)</td>
+                      <td class="right">2.75</td>
+                      <td class="right" style="color:#64b79c">75%</td>
+                      <td class="right" style="color:#c4a4e0">50%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center;padding:20px;font-size:11px;color:#7c708b">
+      Winmix · newddesign H2H demo · minden adat szimulált példa
+    </div>
+  </div>
+
+  <script>
+    // Expand/collapse rows
+    document.querySelectorAll('.expand-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        btn.classList.toggle('open');
+      });
+    });
+
+    // Sort toggle
+    document.querySelectorAll('.sort-group button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.sort-group button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
+    // Search filter
+    const search = document.querySelector('.search-field input');
+    search.addEventListener('input', () => {
+      const q = search.value.trim().toLowerCase();
+      document.querySelectorAll('#pair-rows tr').forEach(tr => {
+        if (tr.querySelector('.expand-btn')) {
+          const text = tr.textContent.toLowerCase();
+          tr.style.display = text.includes(q) ? '' : 'none';
+        }
+      });
+    });
+  </script>
+</body>
+</html>
