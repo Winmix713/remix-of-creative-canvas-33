@@ -6,7 +6,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    allowedHosts: ['sb-5ryrgr56bgi5.vercel.run'],
+    allowedHosts: ['.vercel.run'],
   },
   test: {
     environment: 'jsdom',
