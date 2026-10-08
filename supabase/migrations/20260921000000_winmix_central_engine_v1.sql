@@ -1,5 +1,5 @@
 -- WinMix Supabase Core v1
--- Run this ONCE in Supabase SQL Editor against project yvwnchyedxkajtwwkkqd.
+-- Run this ONCE in Supabase SQL Editor against the active WinMix project.
 -- It is intentionally transactional: an unmet baseline check rolls everything back.
 
 begin;

@@ -11,7 +11,7 @@ Elolvastam a hivatkozott „Supabase kapcsolat javítása” beszélgetést, és
 
 Az `osszes.md` öt forrásszakaszt tartalmaz: kliens, konfiguráció, `supabaseTier.ts`, funkciókonfiguráció, Edge Function. **Nem tartalmazza az adatbázis migrációit és a React felületet.** Ezekhez kiegészítő, olvasott referencia volt a helyi `2026-09-20/n-z/winmix` checkout `supabase/migrations`, `useCloudTier`, `useOpsActions`, `CloudTierTab`, `cloudSync` és `autoWeights` állománya. Ezt a checkoutot nem módosítottam.
 
-Lényeges eltérés: a csatolmány a `dpmyxypqcsugycqhifaf` projektre hivatkozik, míg a helyi Core migráció egy másik, `yvwnchyedxkajtwwkkqd` projekthez készült. A két projekt sémájának azonossága **nem bizonyított**. A csomag egyikre sem állít be automatikus kapcsolatot.
+A csatolmány a `dpmyxypqcsugycqhifaf` projektre hivatkozik. A korábbi `yvwnchyedxkajtwwkkqd` projektref eltávolításra került; a konfiguráció egyértelműen a `dpmyxypqcsugycqhifaf` projektet használja.
 
 ## Igazolt hibák
 

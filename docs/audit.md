@@ -8,7 +8,7 @@ Read-only checks against the central project established:
 
 | Item | Verified result |
 |---|---|
-| Project | `yvwnchyedxkajtwwkkqd` |
+| Project | `dpmyxypqcsugycqhifaf` |
 | Data version | `baseline-v1`, sealed, current |
 | English data | 62 seasons; 14,880 matches |
 | Spanish data | 41 seasons; 9,840 matches |

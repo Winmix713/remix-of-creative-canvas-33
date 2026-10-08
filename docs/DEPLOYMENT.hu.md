@@ -2,7 +2,7 @@
 
 ## 1. Azonosítsd a valódi célprojektet
 
-Az eredeti hiba projektje `dpmyxypqcsugycqhifaf`. A gépen talált későbbi WinMix Core-forrás más projektre, `yvwnchyedxkajtwwkkqd`-ra utal. Ellenőrizd, melyiket használja a tényleges webalkalmazás. A build URL-je, nyilvános kulcsa, Auth-felhasználói, adatbázisa és Edge Functionje ugyanahhoz a projekthez tartozzon. Ne másold át automatikusan a régi checkout `.env` állományát.
+Az aktív projekt `dpmyxypqcsugycqhifaf`. A build URL-je, nyilvános kulcsa, Auth-felhasználói, adatbázisa és Edge Functionje ehhez a projekthez tartozik. Ne másold át automatikusan a régi checkout `.env` állományát.
 
 A csomag nem kapcsolódott egyik távoli projekthez sem. A következő parancsokat a projekt jogosult üzemeltetője futtathatja. Először staging klónon dolgozz, adatbázismentés mellett.
 
