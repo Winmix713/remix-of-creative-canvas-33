@@ -25,37 +25,13 @@ export interface AnalysisProgress {
 }
 
 /**
- * A forduló ujjlenyomata: a párosítások sorrendje és csapatai, PLUSZ az
- * alapul szolgáló adat/súly/kalibráció/modell-identitás. Ha bármelyik
- * változik, a korábbi elemzés elavult (`stale`).
- *
- * F18 fix: a korábbi verzió csak a párosításokat kódolta, így adat-import,
- * súlymódosítás vagy kalibráció újraszámítása után régi ajánlások jelenhettek
- * meg "friss" címkével.
+ * A forduló ujjlenyomata: a párosítások sorrendje és csapatai. Ha változik,
+ * a korábbi elemzés elavult (`stale`).
  */
-export function roundSignature(
-  round: FixtureRound,
-  inputIdentity?: {
-    seasons: unknown[];
-    teamWeights: unknown;
-    calibration: unknown;
-    patternWeights: unknown;
-  }
-): string {
-  const fixturePart = round.fixtures.
+export function roundSignature(round: FixtureRound): string {
+  return round.fixtures.
   map((f) => `${f.id}:${f.homeKey ?? ''}>${f.awayKey ?? ''}`).
   join('|');
-
-  if (!inputIdentity) return fixturePart;
-
-  const seasonsKey = `${inputIdentity.seasons.length}:${inputIdentity.seasons
-    .map((s: any) => `${s?.league ?? ''}:${s?.seasonIndex ?? ''}:${s?.matches?.length ?? 0}`)
-    .join('~')}`;
-  const weightsKey = JSON.stringify(inputIdentity.teamWeights);
-  const calibrationKey = JSON.stringify(inputIdentity.calibration);
-  const patternWeightsKey = JSON.stringify(inputIdentity.patternWeights);
-
-  return `${fixturePart}#${seasonsKey}#${weightsKey}#${calibrationKey}#${patternWeightsKey}`;
 }
 
 /**
@@ -164,10 +140,7 @@ strategy?: CoreStrategySettings | null)
   const debounceRef = useRef(false);
 
   const ready = useMemo(() => completedFixtures(round), [round]);
-  const signature = useMemo(
-    () => roundSignature(round, { seasons, teamWeights, calibration, patternWeights }),
-    [round, seasons, teamWeights, calibration, patternWeights]
-  );
+  const signature = useMemo(() => roundSignature(round), [round]);
   const running = status === 'running';
   const stale = analyzedSignature !== null && analyzedSignature !== signature;
 

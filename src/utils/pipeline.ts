@@ -155,9 +155,7 @@ function identityOf(match: MatchRow): string {
   match.home_team,
   match.away_team,
   match.home_score,
-  match.away_score,
-  match.ht_home_score ?? '',
-  match.ht_away_score ?? ''].
+  match.away_score].
   join('|');
 }
 
@@ -725,13 +723,10 @@ export async function computeLeaguePipeline(params: PipelineParams): Promise<Pip
     };
   }
 
-  // F4 fix: experimental Dixon-Coles rho is fitted and evaluated on the SAME
-  // in-sample data. Publishing it into modelFit would let an in-sample result
-  // change production fixture probabilities while the displayed audit still
-  // describes the uncorrected model. Keep research output in experimentReport
-  // only; production modelFit.dixonColesRho stays null until a genuinely
-  // out-of-sample promotion process exists.
-  const validatedRho = null;
+  const validatedRho =
+  experimentReport?.dixonColes?.active && experimentReport.dixonColes.fit ?
+  experimentReport.dixonColes.fit.rho :
+  null;
 
   /* --- Published calibration state ---------------------------------------- */
   const scored = scoredMatchesOf(rows);

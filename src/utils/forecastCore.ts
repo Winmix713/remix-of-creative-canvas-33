@@ -1281,7 +1281,6 @@ outcome: Outcome)
     recommendation: forecast.recommendation,
     caveat: forecast.caveat,
     secondary: { ...forecast.secondary, topScores: forecast.secondary.topScores.map((entry) => ({ ...entry })) },
-    lambdas: { home: forecast.lambdas.home, away: forecast.lambdas.away },
     reconciliation: reconcile(forecast, outcome)
   };
 }

@@ -1,0 +1,140 @@
+The current project schema inspection shows the following:
+
+* `public.winmix_data_versions`: 1 row
+* `public.winmix_seasons`: 2 rows
+* `public.winmix_matches`: 480 rows
+* `public.winmix_teams`: 32 rows
+* `public.winmix_import_batches`: 0 rows
+
+These are row counts from the catalog inventory. The exact `status` and `is_current` values of the data version still need to be verified separately.
+
+The RLS policies only expose seasons and matches belonging to the current, closed data version through public queries. Therefore, an empty array returned by the REST API may mean that the records are being filtered by RLS, not that the tables contain no records.
+
+There are also two different table-name sets in the schema. For example:
+
+* `winmix_data_versions`
+* `winmixdataversions`
+
+The developer must verify which naming convention is actually used by the frontend and by the Edge Function. Do not create another implementation targeting the wrong tables.
+
+The `winmix-ingest` function is currently ACTIVE in the project, version 2, with `verify_jwt: true`. The local `config.toml` contains `false`, but do not change this automatically merely for the sake of "consistency". First establish whether the function is intended to be called with a Supabase Auth user JWT.
+
+Also note that JWT verification by itself does not prove that operator/admin authorization is being checked.
+
+### Send this back to the DevTools assistant
+
+Important clarification:
+
+Do not infer that the tables are empty from an empty REST API response. RLS may be hiding draft or non-current data.
+
+The current Supabase schema inventory reports:
+
+* `winmix_data_versions`: 1 row
+* `winmix_seasons`: 2 rows
+* `winmix_matches`: 480 rows
+* `winmix_teams`: 32 rows
+
+First verify exactly which database version, season, and match tables are being used by the frontend. There is both an underscore-separated and a non-underscore table-name set.
+
+Do not create a new data version and do not start an upload until you have established, through an authorized server-side inspection, the following values for the existing version:
+
+* `version_key`
+* `status`
+* `is_current`
+* `season_count`
+* `match_count`
+
+Also verify that the two seasons and all 480 matches belong to the expected data version.
+
+The anonymous REST/API view is not sufficient for this verification.
+
+The current goal is to implement a secure CSV uploader.
+
+Before making any changes, provide:
+
+1. The exact table names that are actually used.
+2. The Edge Function signature.
+3. The expected CSV headers.
+4. The missing server-side requirements and authorization conditions.
+
+For now:
+
+* Do not modify the database.
+* Do not deploy an Edge Function.
+* Do not delete or replace the existing import path.
+
+### Publishing must NOT be performed
+
+Do not choose either publishing path at this stage.
+
+Do not call `winmix_promote_data_version`.
+
+This is not part of the CSV upload process. It can change which data version is visible to the application and would violate the original requirement that importing must not close or publish a data version.
+
+### Current `winmix-ingest` error
+
+The function error was confirmed by the logs:
+
+`winmix-ingest` POST requests are returning HTTP 500 because the running code looks for a key named `service_role` under the `SUPABASE_SECRET_KEYS` configuration, but that key name is not present.
+
+There have also been HTTP 401 responses.
+
+This error does not justify publishing the data version.
+
+There is currently no active Supabase incident affecting the project.
+
+The logs only prove that the key name expected by the code is missing from the configured key names. They do not prove that there is no other valid server-side key available.
+
+Do not send any key values in chat, and never put a secret key in the frontend.
+
+### Send this back to the DevTools assistant
+
+I am not choosing either publishing path.
+
+Do not call `winmix_promote_data_version`.
+
+Do not close or publish any data version. This is a separate operation and is not part of CSV ingestion.
+
+The precise cause of the current `winmix-ingest` HTTP 500 error, according to the logs, is that the code searches for a key named `service_role` under `SUPABASE_SECRET_KEYS`, but that name is not present.
+
+Before making any fix, verify:
+
+1. Which key name the deployed function code actually expects.
+2. Which key names are currently configured in the project.
+
+Only inspect the key names. Do not read, expose, print, or transmit any key values.
+
+All secret keys must remain server-side.
+
+After that, perform a read-only inspection to establish:
+
+* the exact `id` of the existing data version,
+* its `status`,
+* its `is_current` value,
+* whether the application uses the underscore-separated or non-underscore table set,
+* and how the existing seasons and matches are associated with that version.
+
+Do not claim that the tables are empty based solely on an anonymous REST response.
+
+The goal remains a secure CSV upload mechanism with:
+
+* an explicit target data version,
+* an explicit season key,
+* operator/admin authorization,
+* atomic server-side persistence.
+
+For now:
+
+* Do not modify the database.
+* Do not deploy an Edge Function.
+* Do not publish or promote an existing data version.
+* Do not call `winmix_promote_data_version`.
+
+First provide:
+
+1. The proposed remediation plan.
+2. The affected files.
+3. The actual signature of the existing import RPC.
+4. The current limitations and constraints of that RPC.
+
+Do not implement the changes yet. First provide the investigation findings and the remediation plan.

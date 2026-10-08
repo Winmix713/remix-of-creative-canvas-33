@@ -1,4 +1,5 @@
-project_id = "oaadhaapbgzyibyadgdh"
-
+# Merge this section into your existing config; preserve all other settings.
 [functions.winmix-ingest]
+# Handler validates user JWT through Auth, then the RPC checks a live role table.
+# This also supports a dedicated server-only credential and explicit OPTIONS.
 verify_jwt = false

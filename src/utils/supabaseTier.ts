@@ -1,606 +1,129 @@
-/**
- * PHASE 5 — Supabase as an ADDITIONAL, read-only, opt-in tier.
- *
- * Hard rules encoded here:
- *  • Only the ANON key is ever read from the environment. A service-role key is
- *    a server-only secret (ingestion CLI / edge function) and must never be
- *    referenced from client code — see docs/supabase-migration.md.
- *  • RLS grants `select` and nothing else to anon, so this module never
- *    attempts a write. Persistence of app state stays on the existing
- *    localStorage tier, with its corruption quarantine and JSON export intact.
- *  • Any failure — unconfigured, offline, timeout, RLS rejection — degrades the
- *    session to 'local' for good and surfaces a banner. Supabase is never a
- *    hard dependency.
- *  • Anything fetched from SQL is ADVISORY / UI-only. It never feeds the
- *    pipeline, the joint score matrix, or the seeded bootstrap.
- */
 import { z } from 'zod';
-import type { League } from '../types/winmix';
 import { readCloudEnv } from './cloudConfig';
+import { getSupabase, sessionToken } from '../integrations/supabase/client';
+import { normalizeInput, type IngestInput, type League, type MatchInput, type SeasonInput } from '../../supabase/functions/winmix-ingest/contract';
+export type { IngestInput, League, MatchInput, SeasonInput };
 
-const PROBE_TIMEOUT_MS = 4000;
-
-const readEnv = readCloudEnv;
-
-/** Turns a PostgREST status code into something a human can act on. */
-function describeHttpError(status: number, statusText: string): string {
-  switch (status) {
-    case 401:
-      return 'HTTP 401 — az anon kulcsot a projekt elutasította. Ellenőrizd, hogy a kulcs ehhez a projekthez tartozik-e, és hogy a legacy JWT kulcsok engedélyezve vannak-e (új projekteknél a publishable kulcs kell).';
-    case 403:
-      return 'HTTP 403 — a kulcs érvényes, de az RLS nem enged `select`-et az anon szerepnek.';
-    case 404:
-      return 'HTTP 404 — a kért nézet/tábla nem létezik ebben a projektben (lásd docs/supabase-migration.md).';
-    case 429:
-      return 'HTTP 429 — túl sok kérés, próbáld újra később.';
-    default:
-      return `HTTP ${status} — ${statusText || 'kérés elutasítva'}`;
-  }
-}
-
-/** Non-secret connection summary for the diagnostics panel. */
-export function cloudEndpointSummary(): {url: string;source: 'env' | 'fallback';} | null {
-  const env = readEnv();
-  return env ? { url: env.url, source: env.source } : null;
-}
-
-export function isCloudTierConfigured(): boolean {
-  return readEnv() !== null;
-}
-
-export type CloudTierStatus = 'unconfigured' | 'probing' | 'online' | 'degraded';
-
-export interface CloudTierHealth {
-  status: CloudTierStatus;
-  /** Sticky for the whole session once a call has failed. */
-  degraded: boolean;
-  lastError: string | null;
-  checkedAt: string | null;
-}
-
-export function idleHealth(): CloudTierHealth {
-  return {
-    status: isCloudTierConfigured() ? 'probing' : 'unconfigured',
-    degraded: false,
-    lastError: null,
-    checkedAt: null
-  };
-}
-
-/** Carries the HTTP status so callers can branch (404 → fall back, 401 → stop). */
 export class CloudHttpError extends Error {
-  readonly status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = 'CloudHttpError';
-    this.status = status;
-  }
+  constructor(readonly status: number, message: string, readonly code = '', readonly traceId?: string) { super(message); this.name = 'CloudHttpError'; }
 }
+export const isCloudTierConfigured = () => readCloudEnv() !== null;
+export const cloudEndpointSummary = () => { const e = readCloudEnv(); return e ? { url: e.url, source: e.source } : null; };
+export type CloudTierStatus = 'unconfigured' | 'probing' | 'online' | 'degraded';
+export interface CloudTierHealth { status: CloudTierStatus; degraded: boolean; lastError: string | null; checkedAt: string | null }
+export const idleHealth = (): CloudTierHealth => ({ status: isCloudTierConfigured() ? 'probing' : 'unconfigured', degraded: false, lastError: null, checkedAt: null });
 
-/** PostgREST returns `{ message, hint, details, code }` on every error. */
-async function readPostgrestDetail(res: Response): Promise<string> {
+function errorMessage(status: number, code: string): string {
+  if (status === 401) return 'A kulcs vagy a munkamenet érvénytelen. Ellenőrizd a projektet, majd jelentkezz be újra.';
+  if (status === 403) return 'Ehhez a művelethez vagy adatverzióhoz nincs jogosultságod.';
+  if (status === 409) return 'A draft megváltozott vagy lezárták. Frissítsd a verziólistát.';
+  if (status === 404 || code === 'PGRST202') return 'A szükséges felhőfüggvény nincs telepítve ebben a projektben.';
+  if (status === 429) return 'Túl sok kérés. Próbáld újra később.';
+  return `Felhőhiba (${status}${code ? `, ${code}` : ''}).`;
+}
+export async function cloudRequest(path: string, body: unknown, signedIn = false, timeout = 20000): Promise<unknown> {
+  const env = readCloudEnv();
+  if (!env) throw new Error('Nincs érvényes felhőkonfiguráció.');
+  const token = await sessionToken(signedIn);
+  const headers: Record<string,string> = { apikey: env.anonKey, 'Content-Type': 'application/json', Accept: 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  else if (!env.anonKey.startsWith('sb_publishable_')) headers.Authorization = `Bearer ${env.anonKey}`;
+  let res: Response;
   try {
-    const body = (await res.json()) as Record<string, unknown>;
-    const parts = [body.message, body.hint, body.details].
-    filter((v): v is string => typeof v === 'string' && v.length > 0).
-    map((v) => v.trim());
-    const code = typeof body.code === 'string' ? ` (${body.code})` : '';
-    return parts.length ? ` · PostgREST: ${parts.join(' — ')}${code}` : '';
-  } catch {
-    return '';
+    res = await fetch(`${env.url}/${path}`, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(timeout) });
+  } catch (e) {
+    throw new CloudHttpError(0, e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')
+      ? 'Időtúllépés. Feltöltésnél az eredmény bizonytalan: ugyanazzal a kérésazonosítóval próbáld újra.'
+      : 'Hálózati vagy CORS-hiba. Ellenőrizd az OPTIONS kérést és a kapcsolatot.');
   }
-}
-
-/** New `sb_publishable_…` keys are opaque strings, not JWTs — never send them as Bearer. */
-function isOpaqueKey(key: string): boolean {
-  return key.startsWith('sb_publishable_') || key.startsWith('sb_secret_');
-}
-
-async function restGet(path: string, timeoutMs: number = PROBE_TIMEOUT_MS): Promise<unknown> {
-  const env = readEnv();
-  if (!env) throw new Error('A felhő tier nincs konfigurálva (VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY).');
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const headers: Record<string, string> = {
-      // The key belongs in `apikey`. Legacy JWT anon keys are mirrored into
-      // `Authorization` so PostgREST resolves the role; opaque publishable keys
-      // must NOT be sent as Bearer (PostgREST answers 401 "Expected 3 parts").
-      apikey: env.anonKey,
-      Accept: 'application/json'
-    };
-    if (!isOpaqueKey(env.anonKey)) headers.Authorization = `Bearer ${env.anonKey}`;
-    const res = await fetch(`${env.url}/rest/v1/${path}`, {
-      method: 'GET',
-      headers,
-      signal: controller.signal
-    });
-    if (!res.ok) {
-      const detail = await readPostgrestDetail(res);
-      throw new CloudHttpError(res.status, describeHttpError(res.status, res.statusText) + detail);
-    }
-    return (await res.json()) as unknown;
-  } finally {
-    window.clearTimeout(timer);
+  const parsed = await res.json().catch(() => null);
+  if (!res.ok) {
+    const code = typeof parsed?.code === 'string' ? parsed.code : '';
+    const detail = typeof parsed?.error === 'string' ? parsed.error : errorMessage(res.status,code);
+    throw new CloudHttpError(res.status,detail,code,parsed?.traceId);
   }
+  if (res.status !== 200 || parsed === null) throw new Error('Váratlan vagy részleges szerverválasz.');
+  return parsed;
 }
-
-/** Reachability + RLS probe. Never throws; the caller degrades on `false`. */
+const rpc = (name: string, args: unknown = {}) => cloudRequest(`rest/v1/rpc/${name}`,args);
+const Access = z.object({ contract: z.literal(2), canWrite: z.boolean() });
+export async function cloudAccess() { return Access.parse(await rpc('winmix_cloud_access')); }
 export async function probeCloudTier(): Promise<CloudTierHealth> {
-  if (!isCloudTierConfigured()) {
-    return {
-      status: 'unconfigured',
-      degraded: false,
-      lastError: null,
-      checkedAt: new Date().toISOString()
-    };
-  }
-  try {
-    // Probe the view the cross-check actually reads. A 404 only means the view
-    // is not deployed yet, so fall back to the REST root to prove reachability.
-    // A 401/403 is a real credential/RLS/GRANT problem and must not be masked.
-    try {
-      await restGet('view_team_ratings?select=canonical_key&limit=1');
-    } catch (e) {
-      if (e instanceof CloudHttpError && (e.status === 401 || e.status === 403)) throw e;
-      // view_team_ratings may not exist yet — probe a table that does.
-      await restGet('winmix_seasons?select=id&limit=1');
-    }
-    return { status: 'online', degraded: false, lastError: null, checkedAt: new Date().toISOString() };
-  } catch (e) {
-    return {
-      status: 'degraded',
-      degraded: true,
-      lastError: e instanceof Error ? e.message : String(e),
-      checkedAt: new Date().toISOString()
-    };
-  }
+  if (!isCloudTierConfigured()) return { ...idleHealth(), checkedAt: new Date().toISOString() };
+  try { await cloudAccess(); await fetchCloudVersions(); return { status:'online',degraded:false,lastError:null,checkedAt:new Date().toISOString() }; }
+  catch(e) { return {status:'degraded',degraded:true,lastError:e instanceof Error ? e.message : String(e),checkedAt:new Date().toISOString()}; }
 }
-
-/** One row of `view_team_ratings` — advisory, cross-check material only. */
-export interface CloudTeamRating {
-  canonicalKey: string;
-  displayName: string;
-  totalPlayed: number;
-  netHome: number;
-  netAway: number;
-  ppg: number;
-  autoWeightIndex: number;
+const Version = z.object({ id:z.string().uuid(),versionKey:z.string(),status:z.enum(['draft','sealed','superseded','rejected']),
+  isCurrent:z.boolean(),revision:z.number().int().nonnegative(),fingerprint:z.string().nullable(),seasonCount:z.number().int().nonnegative(),matchCount:z.number().int().nonnegative() });
+export type CloudVersion = z.infer<typeof Version>;
+export async function fetchCloudVersions() { return z.array(Version).parse(await rpc('winmix_cloud_versions')); }
+async function resolveVersion(id?: string) {
+  if (id) return id;
+  const current = (await fetchCloudVersions()).find(v=>v.isCurrent && v.status==='sealed');
+  return current?.id ?? null;
 }
-
-const TeamRatingSchema = z.array(
-  z.object({
-    canonical_key: z.string().min(1),
-    display_name: z.string(),
-    total_played: z.union([z.number(), z.string()]).transform(Number),
-    net_home: z.union([z.number(), z.string()]).transform(Number),
-    net_away: z.union([z.number(), z.string()]).transform(Number),
-    ppg: z.union([z.number(), z.string()]).transform(Number),
-    auto_weight_index: z.union([z.number(), z.string()]).transform(Number),
-  }),
-);
-
-/**
- * Reads the SQL-side ratings view for cross-checking against
- * `computeAutoTeamWeights()`. UI-only: these numbers are displayed and diffed,
- * never applied as weights and never fed into the pipeline.
- *
- * The raw PostgREST response is validated through a Zod schema before any
- * value reaches the UI — a malformed API response degrades the cloud tier
- * rather than passing bad data through.
- */
-export async function fetchCloudTeamRatings(league: League): Promise<CloudTeamRating[]> {
-  const raw = await restGet(
-    `view_team_ratings?league=eq.${encodeURIComponent(league)}&select=canonical_key,display_name,total_played,net_home,net_away,ppg,auto_weight_index`,
-    10000
-  );
-  const parsed = TeamRatingSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error(
-      `A view_team_ratings válasz nem felel meg a várt sémának: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`
-    );
-  }
-  return parsed.data.map((r) => ({
-    canonicalKey: r.canonical_key,
-    displayName: r.display_name,
-    totalPlayed: r.total_played,
-    netHome: r.net_home,
-    netAway: r.net_away,
-    ppg: r.ppg,
-    autoWeightIndex: r.auto_weight_index,
-  }));
+const Meta = z.object({ id:z.string().uuid(),dataVersionId:z.string().uuid(),revision:z.number().int().nonnegative(),
+  league:z.enum(['angol','spanyol']),seasonIndex:z.number().int().nonnegative(),sourceSeasonKey:z.string(),name:z.string(),fileName:z.string(),
+  contentHash:z.string().nullable(),matchCount:z.number().int().nonnegative(),orderMode:z.enum(['chronological','source-order']),createdAt:z.string() });
+export type CloudSeasonMeta = z.infer<typeof Meta>;
+export async function fetchCloudSeasonList(league?: League, versionId?: string): Promise<CloudSeasonMeta[]> {
+  const version = await resolveVersion(versionId); if (!version) return [];
+  return z.array(Meta).parse(await rpc('winmix_cloud_seasons',{ p_version:version,p_league:league??null }));
 }
-
-/** One season's metadata from `winmix_seasons`, with match count. */
-export interface CloudSeasonMeta {
-  id: string;
-  league: League;
-  seasonIndex: number;
-  name: string;
-  fileName: string;
-  contentHash: string | null;
-  matchCount: number;
-  orderMode: 'chronological' | 'source-order';
-  createdAt: string;
+const Match = z.object({ match_no:z.number().int().positive(),date:z.string().nullable(),kickoffIso:z.string().nullable(),
+  rowIndex:z.number().int().nullable(),sourceFileId:z.string().nullable(),home_team:z.string().min(1),away_team:z.string().min(1),
+  ht_home_score:z.number().int().nonnegative().nullable(),ht_away_score:z.number().int().nonnegative().nullable(),home_score:z.number().int().min(0).max(20),away_score:z.number().int().min(0).max(20) });
+export interface CloudSeasonDownload { meta:CloudSeasonMeta; csvText:string; matches:MatchInput[] }
+/** RFC 4180 quoting, including commas, quotes and embedded newlines. */
+export const csvCell = (v: unknown): string => { const s=v==null?'':String(v); return /[",\r\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s; };
+export async function fetchCloudSeasonData(meta:CloudSeasonMeta):Promise<CloudSeasonDownload> {
+  const data=z.object({meta:z.object({id:z.string().uuid(),matchCount:z.number().int(),contentHash:z.string().nullable()}),
+    matches:z.array(Match),revision:z.number().int(),dataVersionId:z.string().uuid()}).parse(await rpc('winmix_cloud_season',{
+      p_season:meta.id,p_version:meta.dataVersionId,p_revision:meta.revision }));
+  if(data.meta.id!==meta.id || data.dataVersionId!==meta.dataVersionId || data.revision!==meta.revision || data.meta.contentHash!==meta.contentHash || data.matches.length!==meta.matchCount) throw new Error('A felhőadat megváltozott; töltsd újra a szezonlistát.');
+  if(new Set(data.matches.map(m=>m.match_no)).size!==meta.matchCount) throw new Error('Ismétlődő mérkőzéssorszám a válaszban.');
+  const matches=data.matches.map(m=>({...m,date:m.date??'',rowIndex:m.rowIndex??undefined}));
+  const header='date,home_team,away_team,ht_home_score,ht_away_score,home_score,away_score';
+  return {meta,matches,csvText:[header,...matches.map(m=>[m.date,m.home_team,m.away_team,m.ht_home_score,m.ht_away_score,m.home_score,m.away_score].map(csvCell).join(','))].join('\r\n')};
 }
-
-const SeasonMetaSchema = z.array(
-  z.object({
-    id: z.string().uuid(),
-    league: z.string(),
-    season_index: z.union([z.number(), z.string()]).transform(Number),
-    name: z.string(),
-    file_name: z.string(),
-    content_hash: z.string().nullable().optional(),
-    match_count: z.union([z.number(), z.string()]).transform(Number),
-    order_mode: z.string(),
-    created_at: z.string(),
-  }),
-);
-
-/** One match row from `winmix_matches`, with team display names joined via PostgREST. */
-const CloudMatchSchema = z.array(
-  z.object({
-    match_no: z.union([z.number(), z.string()]).transform(Number),
-    match_date_raw: z.string().nullable().optional(),
-    kickoff_iso: z.string().nullable().optional(),
-    home_team: z.object({ display_name: z.string() }),
-    away_team: z.object({ display_name: z.string() }),
-    ht_home_score: z.number().nullable().optional(),
-    ht_away_score: z.number().nullable().optional(),
-    home_score: z.union([z.number(), z.string()]).transform(Number),
-    away_score: z.union([z.number(), z.string()]).transform(Number),
-  }),
-);
-
-export interface CloudSeasonDownload {
-  meta: CloudSeasonMeta;
-  csvText: string;
+const Rating=z.object({canonicalKey:z.string().min(1),displayName:z.string(),totalPlayed:z.number().int().nonnegative(),
+  netHome:z.number().finite(),netAway:z.number().finite(),ppg:z.number().finite(),autoWeightIndex:z.number().min(0).max(10)});
+export type CloudTeamRating=z.infer<typeof Rating>;
+const RatingSnapshot=z.object({dataVersionId:z.string().uuid(),revision:z.number().int(),league:z.enum(['angol','spanyol']),ratings:z.array(Rating),
+  basis:z.array(z.tuple([z.number().int(),z.number().int(),z.string(),z.string(),z.number().int(),z.number().int()]))});
+export type CloudRatingSnapshot=z.infer<typeof RatingSnapshot>;
+export async function fetchCloudRatingSnapshot(league:League,versionId:string) {
+  const data=RatingSnapshot.parse(await rpc('winmix_cloud_ratings',{p_version:versionId,p_league:league}));
+  if(data.dataVersionId!==versionId || data.league!==league) throw new Error('Eltérő verzió / liga a szerver válaszában.');
+  return data;
 }
-
-/**
- * Fetches season metadata from `winmix_seasons`, optionally filtered by league.
- * Returns an empty array if the cloud tier is unconfigured or the table is empty.
- */
-export async function fetchCloudSeasonList(league?: League): Promise<CloudSeasonMeta[]> {
-  const filter = league ? `league=eq.${encodeURIComponent(league)}&` : '';
-  const raw = await restGet(
-    `winmix_seasons?${filter}select=id,league,season_index,name,file_name,content_hash,match_count,order_mode,created_at&order=league,season_index.asc`,
-    10000
-  );
-  const parsed = SeasonMetaSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error(
-      `A winmix_seasons válasz nem felel meg a várt sémának: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`
-    );
-  }
-  return parsed.data.map((r) => ({
-    id: r.id,
-    league: r.league as League,
-    seasonIndex: r.season_index,
-    name: r.name,
-    fileName: r.file_name,
-    contentHash: r.content_hash ?? null,
-    matchCount: r.match_count,
-    orderMode: r.order_mode as 'chronological' | 'source-order',
-    createdAt: r.created_at,
-  }));
+export async function fetchCloudTeamRatings(league:League):Promise<CloudTeamRating[]> {
+  const version=await resolveVersion(); return version?(await fetchCloudRatingSnapshot(league,version)).ratings:[];
 }
-
-/**
- * Downloads a single season's matches from the cloud and reconstructs CSV text
- * compatible with the existing import pipeline. Team display names are resolved
- * via a join to `winmix_teams`.
- */
-const seasonDataCache = new Map<string, CloudSeasonDownload>();
-
-export async function fetchCloudSeasonData(meta: CloudSeasonMeta): Promise<CloudSeasonDownload> {
-  const cached = seasonDataCache.get(meta.id);
-  if (cached) return cached;
-
-  const raw = await restGet(
-    `winmix_matches?season_id=eq.${encodeURIComponent(meta.id)}&select=match_no,match_date_raw,kickoff_iso,ht_home_score,ht_away_score,home_score,away_score,home_team:home_team_id(display_name),away_team:away_team_id(display_name)&order=match_no.asc`,
-    30000
-  );
-  const parsed = CloudMatchSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error(
-      `A winmix_matches válasz nem felel meg a várt sémának: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`
-    );
-  }
-
-  const header = 'date,home_team,away_team,ht_home_score,ht_away_score,home_score,away_score';
-  const lines = parsed.data.map((m) => {
-    const date = m.match_date_raw ?? '';
-    const htHome = m.ht_home_score ?? '';
-    const htAway = m.ht_away_score ?? '';
-    return [date, m.home_team.display_name, m.away_team.display_name, htHome, htAway, m.home_score, m.away_score].join(',');
-  });
-  const download = { meta, csvText: [header, ...lines].join('\n') };
-  seasonDataCache.set(meta.id, download);
-  return download;
+const Receipt=z.object({success:z.literal(true),dataVersionId:z.string().uuid(),revision:z.number().int().positive(),status:z.literal('draft'),isCurrent:z.literal(false),
+  seasons:z.number().int().positive(),teams:z.number().int().positive(),matches:z.number().int().positive(),rejected:z.literal(0),repaired:z.literal(0),
+  errors:z.array(z.string()).length(0),manifestErrors:z.array(z.string()).length(0),replayed:z.boolean(),requestId:z.string().uuid()});
+export type IngestResult=z.infer<typeof Receipt>;
+/** Stable per-user key survives reloads; equal source snapshots return the same receipt. */
+export async function prepareIngestRequest(seasons:readonly SeasonInput[]):Promise<IngestInput> {
+  const {data,error}=await getSupabase().auth.getSession();
+  if(error || !data.session) throw new Error('A feltöltéshez jelentkezz be.');
+  const wireSeasons=seasons.map(s=>({league:s.league,seasonIndex:s.seasonIndex,name:s.name,fileName:s.fileName,
+    contentHash:s.contentHash,orderMode:s.orderMode,sourceSeasonKey:s.sourceSeasonKey,
+    matches:s.matches.map(m=>({match_no:m.match_no,date:m.date,kickoffIso:m.kickoffIso,rowIndex:m.rowIndex,sourceFileId:m.sourceFileId,
+      home_team:m.home_team,away_team:m.away_team,ht_home_score:m.ht_home_score,ht_away_score:m.ht_away_score,home_score:m.home_score,away_score:m.away_score}))}));
+  const input:IngestInput={requestId:'00000000-0000-4000-8000-000000000001',seasons:wireSeasons,expectedRevision:0,draftLabel:'WinMix import'};
+  const normalized=normalizeInput(input);
+  const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([data.session.user.id,normalized.payload]))));
+  hash[6]=(hash[6]&15)|128; hash[8]=(hash[8]&63)|128;
+  const hex=[...hash.slice(0,16)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  input.requestId=`${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+  return input;
 }
-
-export interface IngestResult {
-  success: boolean;
-  seasons: number;
-  teams: number;
-  matches: number;
-  rejected: number;
-  repaired: number;
-  errors: string[];
-}
-
-/**
- * Uploads local seasons to the Supabase cloud tier via the winmix-ingest edge
- * function. The function reads the service-role key from its own Deno env at
- * runtime, so the browser only needs the publishable/anon key for the gateway.
- * Opaque `sb_publishable_` keys go in `apikey` only — never as `Bearer`.
- *
- * Idempotent: re-uploading the same seasons safely upserts (no duplicates).
- */
-export async function ingestSeasonsToCloud(params: {
-  seasons: Array<{
-    id: string;
-    league: League;
-    seasonIndex: number;
-    name: string;
-    fileName: string;
-    createdAt: string;
-    contentHash: string | null;
-    orderMode?: string;
-    matches: Array<{
-      match_no: number;
-      date: string;
-      kickoffIso?: string | null;
-      rowIndex?: number;
-      sourceFileId?: string | null;
-      home_team: string;
-      away_team: string;
-      ht_home_score: number | null;
-      ht_away_score: number | null;
-      home_score: number;
-      away_score: number;
-    }>;
-  }>;
-  teamWeights?: Record<string, Record<string, number>>;
-  teamAliasMap?: Record<string, Record<string, string>>;
-}): Promise<IngestResult> {
-  const env = readEnv();
-  if (!env) {
-    return {
-      success: false,
-      seasons: 0,
-      teams: 0,
-      matches: 0,
-      rejected: 0,
-      repaired: 0,
-      errors: ['A felhő tier nincs konfigurálva.'],
-    };
-  }
-
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), 30000);
-
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      apikey: env.anonKey,
-    };
-    if (!isOpaqueKey(env.anonKey)) {
-      headers.Authorization = `Bearer ${env.anonKey}`;
-    }
-    const res = await fetch(`${env.url}/functions/v1/winmix-ingest`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        seasons: params.seasons,
-        teamWeights: params.teamWeights,
-        teamAliasMap: params.teamAliasMap,
-      }),
-      signal: controller.signal,
-    });
-
-    const body = await res.json().catch(() => ({ error: 'Érvénytelen válasz a szervertől' }));
-
-    if (!res.ok) {
-      return {
-        success: false,
-        seasons: 0,
-        teams: 0,
-        matches: 0,
-        rejected: 0,
-        repaired: 0,
-        errors: [body.error ?? `HTTP ${res.status}`],
-      };
-    }
-
-    return {
-      success: body.success ?? false,
-      seasons: body.seasons ?? 0,
-      teams: body.teams ?? 0,
-      matches: body.matches ?? 0,
-      rejected: body.rejected ?? 0,
-      repaired: body.repaired ?? 0,
-      errors: body.errors ?? [],
-    };
-  } catch (e) {
-    return {
-      success: false,
-      seasons: 0,
-      teams: 0,
-      matches: 0,
-      rejected: 0,
-      repaired: 0,
-      errors: [e instanceof Error ? e.message : String(e)],
-    };
-  } finally {
-    window.clearTimeout(timer);
-  }
-}
-
-/* -------------------------------------------------------------------------- */
-/* F13/F14: Production engine-run reader                                       */
-/* -------------------------------------------------------------------------- */
-
-export interface EngineRunSummary {
-  runId: string;
-  dataVersionId: string;
-  engineVersion: string;
-  status: string;
-  inputFingerprint: string | null;
-  resultSummary: Record<string, unknown> | null;
-  createdAt: string;
-  finishedAt: string | null;
-  durationMs: number | null;
-}
-
-export interface EngineRunPrediction {
-  matchId: string;
-  outcomeHome: number;
-  outcomeDraw: number;
-  outcomeAway: number;
-  lambdaHome: number | null;
-  lambdaAway: number | null;
-  confidence: number | null;
-  recommendation: Record<string, unknown>;
-  markets: Record<string, unknown>;
-  modelOutput: Record<string, unknown>;
-}
-
-export interface EngineRunMatchMeta {
-  matchId: string;
-  seasonId: string;
-  league: string;
-  matchNo: number;
-  homeTeam: string;
-  awayTeam: string;
-  homeScore: number | null;
-  awayScore: number | null;
-  kickoffIso: string | null;
-}
-
-export interface EngineRunData {
-  run: EngineRunSummary;
-  matches: EngineRunMatchMeta[];
-  predictions: EngineRunPrediction[];
-}
-
-const EngineRunSchema = z.object({
-  id: z.string().uuid(),
-  data_version_id: z.string().uuid(),
-  engine_version: z.string(),
-  status: z.string(),
-  input_fingerprint: z.string().nullable().optional(),
-  result_summary: z.record(z.unknown()).nullable().optional(),
-  created_at: z.string(),
-  finished_at: z.string().nullable().optional(),
-  duration_ms: z.number().nullable().optional(),
-});
-
-/**
- * Reads the most recently promoted, successful engine run from Supabase.
- * Returns null if no promoted run exists.
- */
-export async function fetchPromotedEngineRun(): Promise<EngineRunSummary | null> {
-  const raw = await restGet(
-    'winmix_engine_runs?status=eq.succeeded&order=created_at.desc&limit=1' +
-    '&select=id,data_version_id,engine_version,status,input_fingerprint,result_summary,created_at,finished_at,duration_ms',
-    10000
-  );
-  const arr = raw as unknown[];
-  if (!Array.isArray(arr) || arr.length === 0) return null;
-  const parsed = EngineRunSchema.safeParse(arr[0]);
-  if (!parsed.success) return null;
-  return {
-    runId: parsed.data.id,
-    dataVersionId: parsed.data.data_version_id,
-    engineVersion: parsed.data.engine_version,
-    status: parsed.data.status,
-    inputFingerprint: parsed.data.input_fingerprint ?? null,
-    resultSummary: parsed.data.result_summary ?? null,
-    createdAt: parsed.data.created_at,
-    finishedAt: parsed.data.finished_at ?? null,
-    durationMs: parsed.data.duration_ms ?? null,
-  };
-}
-
-/**
- * Reads all matches (with team names) for a given data version, paginated.
- */
-export async function fetchEngineRunMatches(dataVersionId: string): Promise<EngineRunMatchMeta[]> {
-  const rows: EngineRunMatchMeta[] = [];
-  for (let from = 0; ; from += 1000) {
-    const raw = await restGet(
-      `winmix_matches?data_version_id=eq.${encodeURIComponent(dataVersionId)}` +
-      '&select=id,season_id,league,match_no,home_score,away_score,kickoff_iso' +
-      ',home:winmix_teams!winmix_matches_home_team_id_fkey(display_name)' +
-      ',away:winmix_teams!winmix_matches_away_team_id_fkey(display_name)' +
-      '&order=season_id.asc,match_no.asc' +
-      `&range=${from}-${from + 999}`,
-      30000
-    );
-    const arr = raw as any[];
-    for (const row of arr) {
-      rows.push({
-        matchId: row.id,
-        seasonId: row.season_id,
-        league: row.league,
-        matchNo: Number(row.match_no),
-        homeTeam: row.home?.display_name ?? '',
-        awayTeam: row.away?.display_name ?? '',
-        homeScore: row.home_score !== null ? Number(row.home_score) : null,
-        awayScore: row.away_score !== null ? Number(row.away_score) : null,
-        kickoffIso: row.kickoff_iso ?? null,
-      });
-    }
-    if (arr.length < 1000) break;
-  }
-  return rows;
-}
-
-/**
- * Reads all predictions for a given engine run, paginated.
- */
-export async function fetchEngineRunPredictions(runId: string): Promise<EngineRunPrediction[]> {
-  const rows: EngineRunPrediction[] = [];
-  for (let from = 0; ; from += 1000) {
-    const raw = await restGet(
-      `winmix_predictions?run_id=eq.${encodeURIComponent(runId)}` +
-      '&select=match_id,outcome_home,outcome_draw,outcome_away,lambda_home,lambda_away,confidence,recommendation,markets,model_output' +
-      '&order=match_id.asc' +
-      `&range=${from}-${from + 999}`,
-      30000
-    );
-    const arr = raw as any[];
-    for (const row of arr) {
-      rows.push({
-        matchId: row.match_id,
-        outcomeHome: Number(row.outcome_home),
-        outcomeDraw: Number(row.outcome_draw),
-        outcomeAway: Number(row.outcome_away),
-        lambdaHome: row.lambda_home !== null ? Number(row.lambda_home) : null,
-        lambdaAway: row.lambda_away !== null ? Number(row.lambda_away) : null,
-        confidence: row.confidence !== null ? Number(row.confidence) : null,
-        recommendation: row.recommendation ?? {},
-        markets: row.markets ?? {},
-        modelOutput: row.model_output ?? {},
-      });
-    }
-    if (arr.length < 1000) break;
-  }
-  return rows;
-}
-
-/**
- * Loads a complete promoted engine run: the run summary, all matches, and all
- * predictions. This is the production startup data path — the browser reads
- * pre-computed outputs instead of recomputing from raw CSV.
- */
-export async function loadEngineRunData(run: EngineRunSummary): Promise<EngineRunData> {
-  const [matches, predictions] = await Promise.all([
-    fetchEngineRunMatches(run.dataVersionId),
-    fetchEngineRunPredictions(run.runId),
-  ]);
-  return { run, matches, predictions };
+/** Caller must retain the SAME input/requestId when the response is lost. No auto-retry. */
+export async function ingestSeasonsToCloud(params:IngestInput):Promise<IngestResult> {
+  normalizeInput(params); // User-visible validation before network access. Server repeats it.
+  const data=Receipt.parse(await cloudRequest('functions/v1/winmix-ingest',params,true,65000));
+  if(data.requestId!==params.requestId || data.seasons!==params.seasons.length || data.matches!==params.seasons.length*240) throw new Error('Az importnyugta eltér a kéréstől. Ne hozz létre új kérést; ellenőrizd a meglévő azonosítót.');
+  return data;
 }

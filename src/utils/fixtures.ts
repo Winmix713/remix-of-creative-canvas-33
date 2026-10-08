@@ -186,7 +186,7 @@ export function buildLeagueHistory(seasons: readonly Season[], league: League): 
   slice().
   sort(
     (a, b) =>
-    a.seasonIndex - b.seasonIndex || (a.createdAt || '').localeCompare(b.createdAt || '')
+    (a.createdAt || '').localeCompare(b.createdAt || '') || a.seasonIndex - b.seasonIndex
   ).
   forEach((s) =>
   finalizeMatchOrder(s.matches).matches.forEach((m) =>
