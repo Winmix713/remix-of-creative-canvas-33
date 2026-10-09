@@ -20,7 +20,19 @@ function fromEnv(key: string): string {
   const viteEnv =
     (import.meta as unknown as {env?: Record<string, string | undefined>}).env ?? {};
   const processEnv = typeof process !== 'undefined' ? process.env : undefined;
-  return (viteEnv[key] ?? processEnv?.[key] ?? '').trim();
+  const aliases: Record<string, string[]> = {
+    VITE_SUPABASE_URL: ['VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_URL'],
+    VITE_SUPABASE_PUBLISHABLE_KEY: [
+      'VITE_SUPABASE_PUBLISHABLE_KEY',
+      'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+      'SUPABASE_PUBLISHABLE_KEY'
+    ],
+    VITE_SUPABASE_ANON_KEY: ['VITE_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_ANON_KEY']
+  };
+  const candidates = aliases[key] ?? [key];
+  return candidates
+    .map((candidate) => viteEnv[candidate] ?? processEnv?.[candidate] ?? '')
+    .find((value) => value.trim())?.trim() ?? '';
 }
 
 function isNonEmptyKey(value: string): boolean {
