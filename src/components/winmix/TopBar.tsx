@@ -1,7 +1,9 @@
 import React from 'react';
 import { DownloadCloud, Loader2, Trash2, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { LEAGUES, LEAGUE_FLAG, LEAGUE_LABEL } from '../../data/leagues';
 import { cn } from '../../lib/utils';
+import { cloudEndpointSummary, probeCloudTier, type CloudTierHealth } from '../../utils/supabaseTier';
 import type { League } from '../../types/winmix';
 
 interface TopBarProps {
@@ -24,6 +26,32 @@ export function TopBar({
   busy,
   loadingMatches
 }: TopBarProps) {
+  const endpoint = cloudEndpointSummary();
+  const [health, setHealth] = useState<CloudTierHealth>(() => ({
+    status: endpoint ? 'probing' : 'unconfigured',
+    degraded: false,
+    lastError: null,
+    checkedAt: null,
+  }));
+
+  useEffect(() => {
+    let active = true;
+    void probeCloudTier().then((nextHealth) => {
+      if (active) setHealth(nextHealth);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const cloudLabel = health.status === 'online'
+    ? 'Supabase: connected'
+    : health.status === 'degraded'
+      ? 'Supabase: error'
+      : health.status === 'probing'
+        ? 'Supabase: checking'
+        : 'Supabase: not configured';
+
   return (
     <header className="z-30 flex min-h-16 shrink-0 flex-wrap items-center gap-3 border-b border-border-subtle bg-surface-2 px-4 py-2.5 md:flex-nowrap md:px-6 md:py-0">
       <div className="min-w-0">
@@ -51,6 +79,19 @@ export function TopBar({
             </button>);
 
         })}
+      </div>
+
+      <div
+        className={cn(
+          'hidden max-w-64 truncate rounded-md border px-2 py-1 text-ui-xs sm:block',
+          health.status === 'online' && 'border-emerald-500/30 text-emerald-700',
+          health.status === 'degraded' && 'border-red-500/30 text-red-700',
+          health.status !== 'online' && health.status !== 'degraded' && 'border-border-subtle text-muted-foreground',
+        )}
+        title={health.lastError ?? endpoint?.url ?? 'Supabase konfiguráció hiányzik'}
+        role="status"
+      >
+        {cloudLabel}
       </div>
 
       <div className="ml-auto flex items-center gap-2">

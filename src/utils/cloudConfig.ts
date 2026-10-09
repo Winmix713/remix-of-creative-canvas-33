@@ -17,9 +17,10 @@ export interface CloudEnv {
 }
 
 function fromEnv(key: string): string {
-  const env =
-  (import.meta as unknown as {env?: Record<string, string | undefined>;}).env ?? {};
-  return (env[key] ?? '').trim();
+  const viteEnv =
+    (import.meta as unknown as {env?: Record<string, string | undefined>}).env ?? {};
+  const processEnv = typeof process !== 'undefined' ? process.env : undefined;
+  return (viteEnv[key] ?? processEnv?.[key] ?? '').trim();
 }
 
 function isNonEmptyKey(value: string): boolean {
@@ -56,16 +57,21 @@ export function resolveCloudEnv(env: Record<string, string | undefined>): CloudE
   return null;
 }
 
-// `.env` is baked in at build time by Vite, so the resolved config can never
-// change within a running session — compute it once and reuse it.
+// `.env` is baked in at build time. Cache by the env signature so the runtime
+// gets stable object identity while tests can safely replace the env bag.
+let cachedSignature: string | undefined;
 let cachedEnv: CloudEnv | null | undefined;
 
 export function readCloudEnv(): CloudEnv | null {
-  if (cachedEnv !== undefined) return cachedEnv;
-  cachedEnv = resolveCloudEnv({
+  const input = {
     VITE_SUPABASE_URL: fromEnv('VITE_SUPABASE_URL'),
     VITE_SUPABASE_PUBLISHABLE_KEY: fromEnv('VITE_SUPABASE_PUBLISHABLE_KEY'),
     VITE_SUPABASE_ANON_KEY: fromEnv('VITE_SUPABASE_ANON_KEY')
-  });
-  return cachedEnv;
+  };
+  const signature = JSON.stringify(input);
+  if (signature !== cachedSignature) {
+    cachedSignature = signature;
+    cachedEnv = resolveCloudEnv(input);
+  }
+  return cachedEnv ?? null;
 }
