@@ -49,7 +49,11 @@ import {
   savePersistedState } from
 '../utils/storage';
 import { canon } from '../utils/teams';
-import { isCloudTierConfigured } from '../utils/supabaseTier';
+import {
+  fetchCloudSeasonData,
+  fetchCloudSeasonList,
+  isCloudTierConfigured
+} from '../utils/supabaseTier';
 import { syncSeasonsToCloud } from '../utils/cloudSync';
 import type {
   AliasMap,
@@ -1127,6 +1131,31 @@ export function useWinmixEngine() {
 
   const dismissRecoveryNotice = useCallback(() => setRecoveryNotice(null), []);
 
+  const loadCloudSeasons = useCallback(async () => {
+    if (!isCloudTierConfigured() || stateRef.current.seasons.length > 0) return;
+    const metadata = await fetchCloudSeasonList();
+    if (metadata.length === 0) {
+      logDiagnostic('info', 'A Supabase szezonkatalógus üres.');
+      return;
+    }
+    const files: File[] = [];
+    for (const meta of metadata) {
+      const download = await fetchCloudSeasonData(meta);
+      files.push(new File([download.csvText], meta.fileName || `${meta.name}.csv`, {
+        type: 'text/csv'
+      }));
+    }
+    await importFiles(files, 'auto');
+    logDiagnostic('info', `Supabase betöltés: ${files.length} szezon átadva a meglévő import pipeline-nak.`);
+  }, [importFiles, logDiagnostic]);
+
+  useEffect(() => {
+    if (!isReady || state.seasons.length > 0 || !isCloudTierConfigured()) return;
+    void loadCloudSeasons().catch((error) => {
+      logDiagnostic('warn', `Supabase szezonbetöltés sikertelen: ${errorMessage(error)}`);
+    });
+  }, [isReady, loadCloudSeasons, logDiagnostic, state.seasons.length]);
+
   /* ----------------------------- Mutations ----------------------------- */
 
   const setLeague = useCallback(
@@ -1759,6 +1788,7 @@ export function useWinmixEngine() {
       pruneOldestSeason,
       clearAll,
       importFiles,
+      loadCloudSeasons,
       dismissUploadResult,
       dismissRecoveryNotice,
       setWeight,
@@ -1806,6 +1836,7 @@ export function useWinmixEngine() {
     pruneOldestSeason,
     clearAll,
     importFiles,
+    loadCloudSeasons,
     dismissUploadResult,
     dismissRecoveryNotice,
     setWeight,
