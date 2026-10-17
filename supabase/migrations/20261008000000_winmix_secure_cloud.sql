@@ -244,9 +244,9 @@ begin
   ) t;
   update public.winmix_data_versions set season_count=v_seasons,match_count=v_matches,
     ingest_revision=ingest_revision+1,updated_at=now(),content_fingerprint=(
-      select md5(coalesce(string_agg(concat_ws('|',s.league,s.season_index,m.match_no,m.kickoff_iso,
+      select encode(sha256(convert_to(coalesce(string_agg(concat_ws('|',s.league,s.season_index,m.match_no,m.kickoff_iso,
         m.home_team_id,m.away_team_id,m.ht_home_score,m.ht_away_score,m.home_score,m.away_score),
-        E'\n' order by s.league,s.season_index,m.match_no),''))
+        E'\n' order by s.league,s.season_index,m.match_no),''),'UTF8')),'hex')
       from public.winmix_seasons s join public.winmix_matches m on m.season_id=s.id where s.data_version_id=v_id
     ), league_coverage=(select jsonb_object_agg(league,jsonb_build_object('seasons',n,'matches',c)) from (
       select league,count(*) n,sum(match_count) c from public.winmix_seasons where data_version_id=v_id group by league
