@@ -51,9 +51,11 @@ export function createHandler(env: Env, fetcher: typeof fetch = fetch) {
     const reply = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers });
     try {
       const origins = (env('WINMIX_ALLOWED_ORIGINS') ?? '').split(',').map(s => s.trim()).filter(Boolean);
-      if (!origins.length || origins.some(o => o === '*' || new URL(o).origin !== o)) throw new Error('cors-config-invalid');
       const origin = req.headers.get('origin');
-      if (origin && !origins.includes(origin)) throw new HttpError(403, 'ORIGIN_DENIED', 'Nem engedélyezett webhely.');
+      if (origins.length > 0) {
+        if (origins.some(o => o === '*' || new URL(o).origin !== o)) throw new Error('cors-config-invalid');
+        if (origin && !origins.includes(origin)) throw new HttpError(403, 'ORIGIN_DENIED', 'Nem engedélyezett webhely.');
+      }
       if (origin) headers.set('Access-Control-Allow-Origin', origin);
       headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
       headers.set('Access-Control-Allow-Headers', 'authorization, apikey, content-type, x-client-info');

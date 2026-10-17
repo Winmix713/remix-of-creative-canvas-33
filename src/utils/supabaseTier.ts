@@ -123,7 +123,30 @@ export async function prepareIngestRequest(seasons:readonly SeasonInput[]):Promi
 /** Caller must retain the SAME input/requestId when the response is lost. No auto-retry. */
 export async function ingestSeasonsToCloud(params:IngestInput):Promise<IngestResult> {
   normalizeInput(params); // User-visible validation before network access. Server repeats it.
-  const data=Receipt.parse(await cloudRequest('functions/v1/winmix-ingest',params,true,65000));
-  if(data.requestId!==params.requestId || data.seasons!==params.seasons.length || data.matches!==params.seasons.length*240) throw new Error('Az importnyugta eltér a kéréstől. Ne hozz létre új kérést; ellenőrizd a meglévő azonosítót.');
-  return data;
+  try {
+    const data=Receipt.parse(await cloudRequest('functions/v1/winmix-ingest',params,true,65000));
+    if(data.requestId!==params.requestId || data.seasons!==params.seasons.length || data.matches!==params.seasons.length*240) throw new Error('Az importnyugta eltér a kéréstől. Ne hozz létre új kérést; ellenőrizd a meglévő azonosítót.');
+    return data;
+  } catch (edgeErr) {
+    if (edgeErr instanceof CloudHttpError && (edgeErr.status === 0 || edgeErr.status >= 500)) {
+      try {
+        const direct = await rpc('winmix_ingest_operator', {
+          p_request_id: params.requestId,
+          p_version_id: params.dataVersionId ?? null,
+          p_expected_revision: params.expectedRevision ?? 0,
+          p_payload: params.payload
+        });
+        const data = Receipt.parse({ ...(direct as Record<string, unknown>), requestId: params.requestId });
+        if(data.requestId!==params.requestId || data.seasons!==params.seasons.length || data.matches!==params.seasons.length*240) throw new Error('Az importnyugta eltér a kéréstől.');
+        return data;
+      } catch (rpcErr) {
+        if (rpcErr instanceof CloudHttpError && rpcErr.status === 404) {
+          throw edgeErr;
+        }
+        throw rpcErr;
+      }
+    }
+    throw edgeErr;
+  }
 }
+
