@@ -39,8 +39,10 @@ update public.winmix_matches m set away_name_snapshot=t.display_name from public
 alter table public.winmix_matches alter column home_name_snapshot set not null;
 alter table public.winmix_matches alter column away_name_snapshot set not null;
 
--- The old global season key would prevent a second version of the same season.
+-- Season identity is scoped to a version and league.
 alter table public.winmix_seasons drop constraint if exists winmix_seasons_league_season_index_key;
+-- Team keys are league-scoped; the legacy global key rejects valid cross-league imports.
+alter table public.winmix_teams drop constraint if exists winmix_teams_canonical_key_key;
 alter table public.winmix_seasons drop constraint if exists winmix_ingest_season_identity_uq;
 create unique index if not exists winmix_cloud_season_source_uq on public.winmix_seasons(data_version_id,league,source_season_key);
 create unique index if not exists winmix_cloud_season_index_uq on public.winmix_seasons(data_version_id,league,season_index);
