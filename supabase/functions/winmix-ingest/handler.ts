@@ -123,7 +123,7 @@ export function createHandler(env: Env, fetcher: typeof fetch = fetch) {
         const known: Record<string, [number, string]> = {
           PT403: [403, 'A fiók nem aktív admin vagy operátor.'],
           PT409: [409, 'A verzió vagy a kérésazonosító ütközik. Töltsd újra a verziót.'],
-          PT422: [422, 'A szezonadatok nem felelnek meg az adatbázis követelményeinek.'],
+          PT422: [422, `A szezonadatok nem felelnek meg az adatbázis követelményeinek${typeof result.message === 'string' && result.message.trim() ? `: ${result.message.trim()}` : '.'}`],
         };
         const error = known[result.code];
         if (error) throw new HttpError(error[0], result.code, error[1]);
