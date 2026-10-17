@@ -39,9 +39,12 @@ update public.winmix_matches m set away_name_snapshot=t.display_name from public
 alter table public.winmix_matches alter column home_name_snapshot set not null;
 alter table public.winmix_matches alter column away_name_snapshot set not null;
 
--- The old global season key would prevent a second version of the same season.
+-- Season identity is scoped to a version and league.
 alter table public.winmix_seasons drop constraint if exists winmix_seasons_league_season_index_key;
+-- Team keys are league-scoped; the legacy global key rejects valid cross-league imports.
+alter table public.winmix_teams drop constraint if exists winmix_teams_canonical_key_key;
 alter table public.winmix_seasons drop constraint if exists winmix_ingest_season_identity_uq;
+create unique index if not exists winmix_cloud_team_identity_uq on public.winmix_teams(league,canonical_key);
 create unique index if not exists winmix_cloud_season_source_uq on public.winmix_seasons(data_version_id,league,source_season_key);
 create unique index if not exists winmix_cloud_season_index_uq on public.winmix_seasons(data_version_id,league,season_index);
 create unique index if not exists winmix_cloud_match_no_uq on public.winmix_matches(data_version_id,season_id,match_no);
@@ -229,7 +232,11 @@ begin
       values(v_id,v_sid,s->>'league',(m->>'match_no')::integer,m->>'date',
         nullif(m->>'kickoff_iso','')::timestamptz,
         nullif(m->>'row_index','')::integer,
-        nullif(m->>'source_file_id',''),
+        case
+          when m->>'source_file_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+            then (m->>'source_file_id')::uuid
+          else null
+        end,
         v_home,v_away,m->>'home_name',m->>'away_name',
         nullif(m->>'ht_home_score','')::integer,
         nullif(m->>'ht_away_score','')::integer,
@@ -244,9 +251,9 @@ begin
   ) t;
   update public.winmix_data_versions set season_count=v_seasons,match_count=v_matches,
     ingest_revision=ingest_revision+1,updated_at=now(),content_fingerprint=(
-      select md5(coalesce(string_agg(concat_ws('|',s.league,s.season_index,m.match_no,m.kickoff_iso,
+      select encode(sha256(convert_to(coalesce(string_agg(concat_ws('|',s.league,s.season_index,m.match_no,m.kickoff_iso,
         m.home_team_id,m.away_team_id,m.ht_home_score,m.ht_away_score,m.home_score,m.away_score),
-        E'\n' order by s.league,s.season_index,m.match_no),''))
+        E'\n' order by s.league,s.season_index,m.match_no),''),'UTF8')),'hex')
       from public.winmix_seasons s join public.winmix_matches m on m.season_id=s.id where s.data_version_id=v_id
     ), league_coverage=(select jsonb_object_agg(league,jsonb_build_object('seasons',n,'matches',c)) from (
       select league,count(*) n,sum(match_count) c from public.winmix_seasons where data_version_id=v_id group by league
