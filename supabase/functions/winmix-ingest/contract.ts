@@ -30,6 +30,10 @@ function integer(v: unknown, min: number, max: number): number {
 }
 function id(v: unknown): string { if (typeof v !== 'string' || !uuid.test(v)) throw new InputError('Érvénytelen UUID.'); return v; }
 function optionalText(v: unknown, max = 200) { return v == null ? null : str(v, max, true); }
+function optionalUuid(v: unknown): string | null {
+  if (v == null || v === '') return null;
+  return typeof v === 'string' && uuid.test(v) ? v : null;
+}
 
 /** Entire request is validated before RPC. Scores are never silently repaired or discarded. */
 export function normalizeInput(value: unknown) {
@@ -75,7 +79,7 @@ export function normalizeInput(value: unknown) {
       const kickoff = optionalText(m.kickoffIso, 40);
       if (kickoff && (!/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(kickoff) || !Number.isFinite(Date.parse(kickoff)))) throw new InputError('A kickoffIso időzónás ISO dátum legyen.');
       return { match_no: no, date: str(m.date ?? '', 200, true), kickoff_iso: kickoff,
-        row_index: m.rowIndex == null ? null : integer(m.rowIndex, 0, 2147483646), source_file_id: optionalText(m.sourceFileId),
+        row_index: m.rowIndex == null ? null : integer(m.rowIndex, 0, 2147483646), source_file_id: optionalUuid(m.sourceFileId),
         home_key: hk, away_key: ak, home_name: home, away_name: away,
         ht_home_score: hh, ht_away_score: ha, home_score: hs, away_score: as };
     }).sort((a, b) => a.match_no - b.match_no);

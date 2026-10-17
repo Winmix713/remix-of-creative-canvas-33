@@ -232,7 +232,11 @@ begin
       values(v_id,v_sid,s->>'league',(m->>'match_no')::integer,m->>'date',
         nullif(m->>'kickoff_iso','')::timestamptz,
         nullif(m->>'row_index','')::integer,
-        nullif(m->>'source_file_id',''),
+        case
+          when m->>'source_file_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+            then (m->>'source_file_id')::uuid
+          else null
+        end,
         v_home,v_away,m->>'home_name',m->>'away_name',
         nullif(m->>'ht_home_score','')::integer,
         nullif(m->>'ht_away_score','')::integer,
