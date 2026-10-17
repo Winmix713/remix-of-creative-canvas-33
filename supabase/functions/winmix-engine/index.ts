@@ -189,7 +189,23 @@ Deno.serve(async (request) => {
   if (authError) return authError;
 
   const url = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  let serviceRoleKey = Deno.env.get('WINMIX_SUPABASE_SECRET_KEY')?.trim();
+  if (!serviceRoleKey && Deno.env.get('SUPABASE_SECRET_KEYS')) {
+    try {
+      const keys = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS')!);
+      if (keys && typeof keys === 'object') {
+        const preferred = Deno.env.get('WINMIX_SECRET_KEY_NAME')?.trim();
+        if (preferred && keys[preferred]) serviceRoleKey = keys[preferred].trim();
+        else if (keys['default']) serviceRoleKey = keys['default'].trim();
+        else if (keys['service_role']) serviceRoleKey = keys['service_role'].trim();
+        else {
+          const first = Object.values(keys).find(v => typeof v === 'string' && (v as string).trim().length > 0) as string | undefined;
+          if (first) serviceRoleKey = first.trim();
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  if (!serviceRoleKey) serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')?.trim() ?? '';
   if (!url || !serviceRoleKey) return json({ error: 'Missing Supabase server configuration' }, 500);
   const admin = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 

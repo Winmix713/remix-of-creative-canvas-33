@@ -41,6 +41,7 @@ alter table public.winmix_matches alter column away_name_snapshot set not null;
 
 -- The old global season key would prevent a second version of the same season.
 alter table public.winmix_seasons drop constraint if exists winmix_seasons_league_season_index_key;
+alter table public.winmix_seasons drop constraint if exists winmix_ingest_season_identity_uq;
 create unique index if not exists winmix_cloud_season_source_uq on public.winmix_seasons(data_version_id,league,source_season_key);
 create unique index if not exists winmix_cloud_season_index_uq on public.winmix_seasons(data_version_id,league,season_index);
 create unique index if not exists winmix_cloud_match_no_uq on public.winmix_matches(data_version_id,season_id,match_no);
@@ -144,12 +145,21 @@ declare
   v_id uuid; v_sid uuid; v_home uuid; v_away uuid; s jsonb; m jsonb;
   v_seasons integer; v_matches integer; v_teams integer; v_receipt jsonb;
 begin
-  -- Defense in depth: even an accidental future grant cannot authorize anon/user RPC calls.
-  if coalesce(auth.role(),'')<>'service_role' then raise sqlstate 'PT403' using message='Service RPC only'; end if;
-  if p_actor_id is not null then
-    -- Hold a lock so an operator revocation is ordered against the commit.
+  -- Defense in depth: allow service_role, or authenticated caller matching p_actor_id who is an active operator.
+  if coalesce(auth.role(),'') = 'service_role' then
+    if p_actor_id is not null then
+      -- Hold a lock so an operator revocation is ordered against the commit.
+      perform 1 from public.winmix_cloud_operators where user_id=p_actor_id and enabled for share;
+      if not found then raise sqlstate 'PT403' using message='Active operator required'; end if;
+    end if;
+  elsif coalesce(auth.role(),'') = 'authenticated' then
+    if p_actor_id is null or auth.uid() is distinct from p_actor_id then
+      raise sqlstate 'PT403' using message='Operator identity mismatch';
+    end if;
     perform 1 from public.winmix_cloud_operators where user_id=p_actor_id and enabled for share;
     if not found then raise sqlstate 'PT403' using message='Active operator required'; end if;
+  else
+    raise sqlstate 'PT403' using message='Active operator required';
   end if;
   if p_request_id is null or p_expected_revision is null or p_expected_revision<0
     or jsonb_typeof(p_payload) is distinct from 'object'
@@ -216,9 +226,15 @@ begin
       select id into strict v_away from public.winmix_teams where league=s->>'league' and canonical_key=m->>'away_key';
       insert into public.winmix_matches(data_version_id,season_id,league,match_no,match_date_raw,kickoff_iso,row_index,source_file_id,
         home_team_id,away_team_id,home_name_snapshot,away_name_snapshot,ht_home_score,ht_away_score,home_score,away_score)
-      values(v_id,v_sid,s->>'league',(m->>'match_no')::integer,m->>'date',(m->>'kickoff_iso')::timestamptz,
-        (m->>'row_index')::integer,m->>'source_file_id',v_home,v_away,m->>'home_name',m->>'away_name',
-        (m->>'ht_home_score')::integer,(m->>'ht_away_score')::integer,(m->>'home_score')::integer,(m->>'away_score')::integer);
+      values(v_id,v_sid,s->>'league',(m->>'match_no')::integer,m->>'date',
+        nullif(m->>'kickoff_iso','')::timestamptz,
+        nullif(m->>'row_index','')::integer,
+        nullif(m->>'source_file_id',''),
+        v_home,v_away,m->>'home_name',m->>'away_name',
+        nullif(m->>'ht_home_score','')::integer,
+        nullif(m->>'ht_away_score','')::integer,
+        (m->>'home_score')::integer,
+        (m->>'away_score')::integer);
     end loop;
   end loop;
   select count(*),coalesce(sum(match_count),0) into v_seasons,v_matches from public.winmix_seasons where data_version_id=v_id;
@@ -246,8 +262,28 @@ exception
        or invalid_datetime_format or datetime_field_overflow or unique_violation then
     raise sqlstate 'PT422' using message='Invalid or duplicate input rows; transaction rolled back';
 end $$;
-revoke all on function public.winmix_ingest_v2(uuid,uuid,uuid,integer,jsonb) from public, anon, authenticated;
-grant execute on function public.winmix_ingest_v2(uuid,uuid,uuid,integer,jsonb) to service_role;
+revoke all on function public.winmix_ingest_v2(uuid,uuid,uuid,integer,jsonb) from public, anon;
+grant execute on function public.winmix_ingest_v2(uuid,uuid,uuid,integer,jsonb) to authenticated, service_role;
+
+create or replace function public.winmix_ingest_operator(
+  p_request_id uuid,
+  p_version_id uuid,
+  p_expected_revision integer,
+  p_payload jsonb
+) returns jsonb
+language plpgsql security definer set search_path='' set timezone='UTC' set statement_timeout='50s' as $$
+declare
+  v_actor_id uuid;
+begin
+  v_actor_id := auth.uid();
+  if v_actor_id is null then
+    raise sqlstate 'PT403' using message='Active operator required';
+  end if;
+  return public.winmix_ingest_v2(p_request_id, v_actor_id, p_version_id, p_expected_revision, p_payload);
+end $$;
+
+revoke all on function public.winmix_ingest_operator(uuid,uuid,integer,jsonb) from public, anon;
+grant execute on function public.winmix_ingest_operator(uuid,uuid,integer,jsonb) to authenticated, service_role;
 
 -- Lock down table writes explicitly, including TRUNCATE and privileges inherited from PUBLIC.
 revoke all on public.winmix_data_versions,public.winmix_seasons,public.winmix_matches,public.winmix_teams from public,anon,authenticated;

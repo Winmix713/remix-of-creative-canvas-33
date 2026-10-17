@@ -50,15 +50,21 @@ test('PostgreSQL integration: migration, permissions, atomic ingest and snapshot
     assert.equal(await count('winmix_data_versions'),1);assert.equal(await count('winmix_matches'),240);assert.equal(await count('winmix_ingest_receipts'),1);
   });
   await t.test('anon and ordinary authenticated callers cannot invoke ingest, write, truncate or read drafts',async()=>{
-    for(const role of ['anon','authenticated']){
-      await asRole(role,'20000000-0000-4000-8000-000000000002');
-      await assert.rejects(()=>ingest(p),{code:'42501'});
-      await assert.rejects(()=>db.exec("insert into public.winmix_data_versions(version_key) values('attack')"),{code:'42501'});
-      await assert.rejects(()=>db.exec('truncate public.winmix_matches'),{code:'42501'});
-      assert.equal(await count('winmix_matches'),0);
-      assert.deepEqual((await db.query<{result:unknown}>('select public.winmix_cloud_versions() result')).rows[0].result,[]);
-      await assert.rejects(()=>db.query('select public.winmix_cloud_ratings($1,$2)',[receipt.dataVersionId,'angol']),{code:'PT403'});
-    }
+    await asRole('anon','20000000-0000-4000-8000-000000000002');
+    await assert.rejects(()=>ingest(p),{code:'42501'});
+    await assert.rejects(()=>db.exec("insert into public.winmix_data_versions(version_key) values('attack')"),{code:'42501'});
+    await assert.rejects(()=>db.exec('truncate public.winmix_matches'),{code:'42501'});
+    assert.equal(await count('winmix_matches'),0);
+    assert.deepEqual((await db.query<{result:unknown}>('select public.winmix_cloud_versions() result')).rows[0].result,[]);
+    await assert.rejects(()=>db.query('select public.winmix_cloud_ratings($1,$2)',[receipt.dataVersionId,'angol']),{code:'PT403'});
+
+    await asRole('authenticated','20000000-0000-4000-8000-000000000002');
+    await assert.rejects(()=>ingest(p),{code:'PT403'});
+    await assert.rejects(()=>db.exec("insert into public.winmix_data_versions(version_key) values('attack')"),{code:'42501'});
+    await assert.rejects(()=>db.exec('truncate public.winmix_matches'),{code:'42501'});
+    assert.equal(await count('winmix_matches'),0);
+    assert.deepEqual((await db.query<{result:unknown}>('select public.winmix_cloud_versions() result')).rows[0].result,[]);
+    await assert.rejects(()=>db.query('select public.winmix_cloud_ratings($1,$2)',[receipt.dataVersionId,'angol']),{code:'PT403'});
     await asRole('service_role');
   });
   await t.test('live role revocation blocks even an old valid identity',async()=>{

@@ -39,8 +39,16 @@ export async function cloudRequest(path: string, body: unknown, signedIn = false
   const parsed = await res.json().catch(() => null);
   if (!res.ok) {
     const code = typeof parsed?.code === 'string' ? parsed.code : '';
-    const detail = typeof parsed?.error === 'string' ? parsed.error : errorMessage(res.status,code);
-    throw new CloudHttpError(res.status,detail,code,parsed?.traceId);
+    const rawMsg = typeof parsed?.message === 'string' && parsed.message.trim()
+      ? parsed.message.trim()
+      : typeof parsed?.error === 'string' && parsed.error.trim()
+      ? parsed.error.trim()
+      : '';
+    const baseMsg = errorMessage(res.status, code);
+    const detail = rawMsg && rawMsg !== baseMsg
+      ? `${baseMsg}: ${rawMsg}`
+      : (rawMsg || baseMsg);
+    throw new CloudHttpError(res.status, detail, code, parsed?.traceId);
   }
   if (res.status !== 200 || parsed === null) throw new Error('Váratlan vagy részleges szerverválasz.');
   return parsed;
@@ -122,7 +130,7 @@ export async function prepareIngestRequest(seasons:readonly SeasonInput[]):Promi
 }
 /** Caller must retain the SAME input/requestId when the response is lost. No auto-retry. */
 export async function ingestSeasonsToCloud(params:IngestInput):Promise<IngestResult> {
-  normalizeInput(params); // User-visible validation before network access. Server repeats it.
+  const normalized = normalizeInput(params); // User-visible validation before network access. Server repeats it.
   try {
     const data=Receipt.parse(await cloudRequest('functions/v1/winmix-ingest',params,true,65000));
     if(data.requestId!==params.requestId || data.seasons!==params.seasons.length || data.matches!==params.seasons.length*240) throw new Error('Az importnyugta eltér a kéréstől. Ne hozz létre új kérést; ellenőrizd a meglévő azonosítót.');
@@ -130,12 +138,12 @@ export async function ingestSeasonsToCloud(params:IngestInput):Promise<IngestRes
   } catch (edgeErr) {
     if (edgeErr instanceof CloudHttpError && (edgeErr.status === 0 || edgeErr.status >= 500)) {
       try {
-        const direct = await rpc('winmix_ingest_operator', {
-          p_request_id: params.requestId,
-          p_version_id: params.dataVersionId ?? null,
-          p_expected_revision: params.expectedRevision ?? 0,
-          p_payload: params.payload
-        });
+        const direct = await cloudRequest('rest/v1/rpc/winmix_ingest_operator', {
+          p_request_id: normalized.requestId,
+          p_version_id: normalized.dataVersionId ?? null,
+          p_expected_revision: normalized.expectedRevision ?? 0,
+          p_payload: normalized.payload
+        }, true, 65000);
         const data = Receipt.parse({ ...(direct as Record<string, unknown>), requestId: params.requestId });
         if(data.requestId!==params.requestId || data.seasons!==params.seasons.length || data.matches!==params.seasons.length*240) throw new Error('Az importnyugta eltér a kéréstől.');
         return data;

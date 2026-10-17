@@ -13,8 +13,25 @@ function serverKey(env: Env): string {
   const explicit = env('WINMIX_SUPABASE_SECRET_KEY')?.trim();
   let mapped: string | undefined;
   if (!explicit && env('SUPABASE_SECRET_KEYS')) {
-    const keys = JSON.parse(env('SUPABASE_SECRET_KEYS')!);
-    mapped = keys[env('WINMIX_SECRET_KEY_NAME') || 'default'];
+    try {
+      const raw = env('SUPABASE_SECRET_KEYS');
+      const keys = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (keys && typeof keys === 'object') {
+        const preferred = env('WINMIX_SECRET_KEY_NAME')?.trim();
+        if (preferred && typeof keys[preferred] === 'string' && keys[preferred].trim()) {
+          mapped = keys[preferred].trim();
+        } else if (typeof keys['default'] === 'string' && keys['default'].trim()) {
+          mapped = keys['default'].trim();
+        } else if (typeof keys['service_role'] === 'string' && keys['service_role'].trim()) {
+          mapped = keys['service_role'].trim();
+        } else {
+          const candidate = Object.values(keys).find(v => typeof v === 'string' && (v as string).trim().length > 0) as string | undefined;
+          if (candidate) mapped = candidate.trim();
+        }
+      }
+    } catch {
+      /* Invalid JSON in SUPABASE_SECRET_KEYS */
+    }
   }
   const key = explicit || mapped || env('SUPABASE_SERVICE_ROLE_KEY')?.trim();
   if (!key) throw new Error('server-key-missing');
@@ -49,6 +66,7 @@ export function createHandler(env: Env, fetcher: typeof fetch = fetch) {
     const headers = new Headers({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store',
       'Vary': 'Origin', 'X-Request-Id': requestId });
     const reply = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers });
+    let allowedOrigin: string | null = null;
     try {
       const origins = (env('WINMIX_ALLOWED_ORIGINS') ?? '').split(',').map(s => s.trim()).filter(Boolean);
       const origin = req.headers.get('origin');
@@ -56,16 +74,22 @@ export function createHandler(env: Env, fetcher: typeof fetch = fetch) {
         if (origins.some(o => o === '*' || new URL(o).origin !== o)) throw new Error('cors-config-invalid');
         if (origin && !origins.includes(origin)) throw new HttpError(403, 'ORIGIN_DENIED', 'Nem engedélyezett webhely.');
       }
-      if (origin) headers.set('Access-Control-Allow-Origin', origin);
+      if (origin) {
+        allowedOrigin = origin;
+        headers.set('Access-Control-Allow-Origin', origin);
+      }
       headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-      headers.set('Access-Control-Allow-Headers', 'authorization, apikey, content-type, x-client-info');
+      const reqHeaders = req.headers.get('access-control-request-headers');
+      headers.set('Access-Control-Allow-Headers', reqHeaders || 'authorization, apikey, content-type, x-client-info');
       headers.set('Access-Control-Expose-Headers', 'x-request-id');
       if (req.method === 'OPTIONS') {
         const requestedMethod = req.headers.get('access-control-request-method');
-        const requestedHeaders = (req.headers.get('access-control-request-headers') || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
-        if ((requestedMethod && requestedMethod !== 'POST') || requestedHeaders.some(h => !['authorization','apikey','content-type','x-client-info'].includes(h))) throw new HttpError(400, 'PREFLIGHT', 'Nem támogatott preflight.');
-        headers.set('Access-Control-Max-Age', '600');
-        return reply(null, 204); // No JWT or server key is needed to negotiate CORS.
+        if (requestedMethod && requestedMethod !== 'POST') {
+          headers.set('Allow', 'POST, OPTIONS');
+          throw new HttpError(405, 'METHOD', 'Csak POST támogatott.');
+        }
+        headers.set('Access-Control-Max-Age', '86400');
+        return new Response('ok', { status: 200, headers });
       }
       if (req.method !== 'POST') { headers.set('Allow', 'POST, OPTIONS'); throw new HttpError(405, 'METHOD', 'Csak POST támogatott.'); }
       const bearer = /^Bearer (\S+)$/i.exec(req.headers.get('authorization') || '')?.[1];
@@ -109,6 +133,11 @@ export function createHandler(env: Env, fetcher: typeof fetch = fetch) {
       }
       return reply({ ...result, requestId: input.requestId, traceId: requestId });
     } catch (error) {
+      if (allowedOrigin) headers.set('Access-Control-Allow-Origin', allowedOrigin);
+      headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      const reqHeaders = req.headers.get('access-control-request-headers');
+      headers.set('Access-Control-Allow-Headers', reqHeaders || 'authorization, apikey, content-type, x-client-info');
+      headers.set('Access-Control-Expose-Headers', 'x-request-id');
       if (error instanceof InputError) return reply({ success: false, code: 'INVALID_INPUT', error: error.message, traceId: requestId }, 422);
       if (error instanceof HttpError) return reply({ success: false, code: error.code, error: error.message, traceId: requestId }, error.status);
       console.error(JSON.stringify({ requestId, code: error instanceof Error && error.name === 'TimeoutError' ? 'UPSTREAM_TIMEOUT' : 'SERVER_ERROR' }));

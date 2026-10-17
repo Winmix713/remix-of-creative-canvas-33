@@ -8,7 +8,7 @@ const request=(token?:string,body:unknown=fixture(),includeOrigin=true)=>new Req
 test('preflight works without API key, session or server key and uses exact CORS',async()=>{
   const h=createHandler(n=>n==='WINMIX_ALLOWED_ORIGINS'?origin:undefined);
   const r=await h(new Request('https://edge.example',{method:'OPTIONS',headers:{origin,'access-control-request-method':'POST','access-control-request-headers':'authorization,apikey,content-type'}}));
-  assert.equal(r.status,204);assert.equal(r.headers.get('access-control-allow-origin'),origin);
+  assert.equal(r.status,200);assert.equal(r.headers.get('access-control-allow-origin'),origin);
 });
 test('publishable/anon project credentials never grant write access',async()=>{
   let calls=0;const h=createHandler(n=>env[n],async()=>{calls++;return new Response('{}',{status:401});});
@@ -43,3 +43,21 @@ test('malformed body returns no RPC and method/size errors retain CORS',async()=
   const method=await h(new Request('https://edge.example',{headers:{origin}}));assert.equal(method.status,405);
   assert.equal(method.headers.get('access-control-allow-origin'),origin);
 });
+test('resolves secret key from SUPABASE_SECRET_KEYS by alias default, named, or first key',async()=>{
+  for (const [envSetup, expectedKey] of [
+    [{ SUPABASE_URL:'https://project.supabase.co', SUPABASE_SECRET_KEYS: JSON.stringify({ default: 'sb_secret_def' }) }, 'sb_secret_def'],
+    [{ SUPABASE_URL:'https://project.supabase.co', SUPABASE_SECRET_KEYS: JSON.stringify({ custom_alias: 'sb_secret_custom' }), WINMIX_SECRET_KEY_NAME: 'custom_alias' }, 'sb_secret_custom'],
+    [{ SUPABASE_URL:'https://project.supabase.co', SUPABASE_SECRET_KEYS: JSON.stringify({ service_role: 'sb_secret_sr' }) }, 'sb_secret_sr'],
+    [{ SUPABASE_URL:'https://project.supabase.co', SUPABASE_SECRET_KEYS: JSON.stringify({ any_other_alias: 'sb_secret_other' }) }, 'sb_secret_other'],
+  ] as const) {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const h = createHandler(n => (envSetup as any)[n], async (input, init) => {
+      calls.push({ url: String(input), init });
+      return String(input).endsWith('/user') ? Response.json({ id: operatorId, is_anonymous: false }) : Response.json({ code: 'PT403' }, { status: 403 });
+    });
+    await h(request('header.user.signature', fixture(), false));
+    assert.equal(calls.length, 2);
+    assert.equal(new Headers(calls[1].init?.headers).get('apikey'), expectedKey);
+  }
+});
+
