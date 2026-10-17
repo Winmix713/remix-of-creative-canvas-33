@@ -170,7 +170,7 @@ export function ReliabilityDiagram({
             
               <Tooltip
               contentStyle={tooltipStyle}
-              formatter={(value: number) => `${value.toFixed(1)}%`} />
+              formatter={(value: any) => `${Number(value ?? 0).toFixed(1)}%`} />
             
               <Legend verticalAlign="bottom" formatter={legendFormatter} />
               <Line

@@ -19,12 +19,15 @@ import {
   decisionQuadrantOf,
   SECONDARY_MARKET_THRESHOLDS } from
 '../utils/decision';
+import { evaluateBttsBandHealth } from '../utils/coreEligibility';
 import {
   BTTS_STABILITY_RELAXED_ACTIVE,
   CORE_SELECTION_RULE_VERSION,
   computeBttsShadowVerdict,
   coreQualityFailures,
-  effectiveDecisionOf } from
+  effectiveDecisionOf,
+  getBttsRankingScore,
+  selectCoreSet } from
 '../utils/slip';
 import { CORE_STABILITY_MIN, CORE_STABILITY_MIN_SHADOW, BAND_MIN_SAMPLE } from '../utils/constants';
 import { wilsonInterval } from '../utils/bootstrap';
@@ -319,6 +322,71 @@ describe('BTTS Core Recovery — 7-match fixture', () => {
 
     it('BTTS_RELAXED_THRESHOLDS.cMin < SECONDARY_MARKET_THRESHOLDS.cMin', () => {
       expect(BTTS_RELAXED_THRESHOLDS.cMin).toBeLessThan(SECONDARY_MARKET_THRESHOLDS.cMin);
+    });
+  });
+
+  describe('0..3 Core invariant — no force fill', () => {
+    it('returns empty array (Core 0) when candidate list is empty', () => {
+      const picks = selectCoreSet([], 3);
+      expect(picks).toHaveLength(0);
+    });
+
+    it('returns empty array (Core 0) when all candidates are blocked by hard gates', () => {
+      const blockedCandidate: PatternHit = {
+        ...osasuna,
+        id: 'blocked-elche',
+        fixtureId: 'f-elche',
+        modelProb: 0.38, // < 40% absolute gate
+        decision: 'ignore',
+      };
+      const picks = selectCoreSet([blockedCandidate], 3);
+      expect(picks).toHaveLength(0);
+    });
+
+    it('returns exactly available valid count without attempting to force fill to 3', () => {
+      const singleWinner = selectCoreSet([girona], 3);
+      expect(singleWinner).toHaveLength(1);
+      expect(singleWinner[0].id).toBe('girona-san-sebastian');
+    });
+
+    it('never exceeds slots limit even with many candidates', () => {
+      const picks = selectCoreSet(all, 2);
+      expect(picks.length).toBeLessThanOrEqual(2);
+    });
+  });
+
+  describe('Red veto — refuted evidence band cannot receive goldmine bonus', () => {
+    it('refuted band with modelProb >= 0.58 gets -100 penalty, NOT +25 bonus', () => {
+      const evalResult = evaluateBttsBandHealth('40–55%', 0.63, 0.60, 'excluded');
+      expect(evalResult.isExcluded).toBe(true);
+      expect(evalResult.priorityBonus).toBe(-100);
+      expect(evalResult.reason).toContain('Cáfolt sáv');
+    });
+
+    it('unrefuted band with modelProb >= 0.58 gets +25 goldmine bonus', () => {
+      const evalResult = evaluateBttsBandHealth('55–65%', 0.63, 0.60, 'calibrated');
+      expect(evalResult.isExcluded).toBe(false);
+      expect(evalResult.priorityBonus).toBe(25);
+    });
+
+    it('getBttsRankingScore severely demotes refuted candidates', () => {
+      const scoreRefuted = getBttsRankingScore({
+        modelProb: 0.63,
+        hitRate: 0.60,
+        confidence: 60,
+        band: '40–55%',
+        evidenceLevel: 'excluded',
+      });
+      const scoreNormal = getBttsRankingScore({
+        modelProb: 0.63,
+        hitRate: 0.60,
+        confidence: 60,
+        band: '55–65%',
+        evidenceLevel: 'calibrated',
+      });
+      expect(scoreRefuted).toBeLessThan(scoreNormal);
+      // Difference between +25 * 0.5 and -100 * 0.5 is 62.5 points
+      expect(scoreNormal - scoreRefuted).toBeCloseTo(62.5);
     });
   });
 });

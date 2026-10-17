@@ -1,0 +1,8 @@
+{
+  "name": "WinMix — Match Intelligence & Analytics",
+  "description": "Professional virtual football match intelligence, walk-forward predictions, prequential calibration, league analysis, and decision ledger.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

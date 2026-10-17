@@ -496,6 +496,7 @@ export interface TeamMatchEntry {
   awayScore: number;
   totalGoals: number;
   btts: boolean;
+  over25?: boolean;
   /** True only when the fixture belongs to an upcoming round. */
   isUpcoming: boolean;
 }
@@ -620,7 +621,7 @@ export interface LeagueBenchmark {
  */
 export function computeLeagueBenchmark(
   seasons: Season[],
-  benchmarkLeagues: League[] = ['english', 'spanish'] as League[],
+  benchmarkLeagues: League[] = ['angol', 'spanyol'],
 ): LeagueBenchmark {
   const allowedLeagues = new Set<League>(benchmarkLeagues);
 

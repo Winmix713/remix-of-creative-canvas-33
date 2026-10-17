@@ -7,9 +7,10 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "dev": "node node_modules/vite/bin/vite.js",
-    "build": "node node_modules/vite/bin/vite.js build",
-    "preview": "node node_modules/vite/bin/vite.js preview",
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 3000",
+    "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test:core": "tsx --test tests/*.test.ts",
     "test:ui": "vitest run --config vitest.config.ts",

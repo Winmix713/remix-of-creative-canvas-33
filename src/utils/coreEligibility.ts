@@ -261,12 +261,19 @@ export function evaluateBttsBandHealth(
   band: string,
   modelProb: number,
   h2hRate: number,
+  evidenceLevel?: string | null,
 ): BandRiskEvaluation {
-  // 1. ARANYBÁNYA SÁV (55–65%): modell megerősíti → kiemelt bónusz
-  if (band === '55–65%' || (modelProb >= 0.58 && h2hRate >= 0.55)) {
+  const isRefuted = evidenceLevel === 'excluded';
+
+  // 1. CÁFOLT SÁV (Vörös vétó): A cáfolt sávban a modell nem írhatja felül a tényadatot.
+  // Az alulbecsült (underconfident) sáv nem számít cáfolatnak (irányfüggő szabály).
+  if (isRefuted || band === '20–40%' || modelProb < 0.35) {
     return {
-      isExcluded: false,
-      priorityBonus: 25,
+      isExcluded: true,
+      priorityBonus: -100,
+      reason: isRefuted
+        ? `Cáfolt sáv (evidenceLevel=excluded): modell valószínűség (${(modelProb * 100).toFixed(1)}%) nem írhatja felül a tényadatot`
+        : `Kritikusan alacsony modell valószínűség (${(modelProb * 100).toFixed(1)}%) — cáfolt BTTS`,
     };
   }
 
@@ -279,12 +286,11 @@ export function evaluateBttsBandHealth(
     };
   }
 
-  // 3. CÁFOLT MINIMÁLIS SÁV (20–40%): kritikusan alacsony modell
-  if (band === '20–40%' || modelProb < 0.35) {
+  // 3. ARANYBÁNYA SÁV (55–65%): CSAK ha a saját sáv NEM cáfolt!
+  if (!isRefuted && (band === '55–65%' || (modelProb >= 0.58 && h2hRate >= 0.55))) {
     return {
-      isExcluded: true,
-      priorityBonus: -100,
-      reason: `Kritikusan alacsony modell valószínűség (${(modelProb * 100).toFixed(1)}%) — cáfolt BTTS`,
+      isExcluded: false,
+      priorityBonus: 25,
     };
   }
 

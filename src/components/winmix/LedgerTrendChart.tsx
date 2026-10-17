@@ -62,10 +62,10 @@ export function LedgerTrendChart({ points }: {points: LedgerTrendPoint[];}) {
               fontSize: 11
             }}
             labelFormatter={(label) => `${label}. lezárt tippsor`}
-            formatter={(value: number, name) => [
-            `${value.toFixed(1)}%`,
-            name === 'hitRate' ? 'Kumulatív' : 'Utolsó 20']
-            } />
+            formatter={(value: any, name: any) => [
+              `${Number(value ?? 0).toFixed(1)}%`,
+              name === 'hitRate' ? 'Kumulatív' : 'Utolsó 20'
+            ]} />
           
           <Line
             type="monotone"

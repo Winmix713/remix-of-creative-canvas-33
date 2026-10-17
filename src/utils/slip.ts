@@ -540,6 +540,7 @@ export function getBttsRankingScore(candidate: {
   confidence?: number;
   stability?: number;
   band?: string | null;
+  evidenceLevel?: string | null;
 }): number {
   const model = candidate.modelProb ?? candidate.hitRate;
   const h2h = candidate.hitRate;
@@ -552,7 +553,7 @@ export function getBttsRankingScore(candidate: {
 
   // Sáv korrekció — `evaluateBttsBandHealth` adja a `priorityBonus`-t
   if (candidate.band) {
-    const bandEval = evaluateBttsBandHealth(candidate.band, model, h2h);
+    const bandEval = evaluateBttsBandHealth(candidate.band, model, h2h, candidate.evidenceLevel);
     // A bónuszt skálázzuk, hogy a 0..100 pontszámba illeszkedjen
     score += bandEval.priorityBonus * 0.5;
   }

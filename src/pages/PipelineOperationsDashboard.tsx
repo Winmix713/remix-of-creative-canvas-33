@@ -35,6 +35,8 @@ const INTRO =
 export function PipelineOperationsDashboard() {
   const {
     currentLeague,
+    seasons,
+    importFiles,
     leagueSeasons,
     leagueMatches,
     settings,
@@ -161,13 +163,14 @@ export function PipelineOperationsDashboard() {
       <div role="tabpanel" id="ops-panel-cloud" aria-labelledby="ops-tab-cloud">
           <CloudTierTab
             league={currentLeague}
+            seasons={seasons}
             crossCheck={ops.crossCheck}
-            ingestToCloud={() => void ops.ingestToCloud()}
-            ingesting={ops.ingesting}
-            ingestResult={ops.ingestResult}
-            downloadFromCloud={() => void ops.downloadFromCloud(currentLeague)}
-            downloading={ops.downloading}
-            downloadResult={ops.downloadResult}
+            onImport={async (downloads) => {
+              const files = downloads.map(
+                (d) => new File([d.csvText], d.meta.fileName, { type: 'text/csv' })
+              );
+              await importFiles(files, 'auto');
+            }}
           />
         </div> :
       null}
