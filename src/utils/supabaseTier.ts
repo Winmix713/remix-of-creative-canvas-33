@@ -113,19 +113,58 @@ const Receipt=z.object({success:z.literal(true),dataVersionId:z.string().min(1),
   errors:z.array(z.string()).length(0),manifestErrors:z.array(z.string()).length(0),replayed:z.boolean(),requestId:z.string().min(1)});
 export type IngestResult=z.infer<typeof Receipt>;
 /** Stable per-user key survives reloads; equal source snapshots return the same receipt. */
-export async function prepareIngestRequest(seasons:readonly SeasonInput[]):Promise<IngestInput> {
-  const {data,error}=await getSupabase().auth.getSession();
-  if(error || !data.session) throw new Error('A feltöltéshez jelentkezz be.');
-  const wireSeasons=seasons.map(s=>({league:s.league,seasonIndex:s.seasonIndex,name:s.name,fileName:s.fileName,
-    contentHash:s.contentHash,orderMode:s.orderMode,sourceSeasonKey:s.sourceSeasonKey,
-    matches:s.matches.map(m=>({match_no:m.match_no,date:m.date,kickoffIso:m.kickoffIso,rowIndex:m.rowIndex,sourceFileId:m.sourceFileId,
-      home_team:m.home_team,away_team:m.away_team,ht_home_score:m.ht_home_score,ht_away_score:m.ht_away_score,home_score:m.home_score,away_score:m.away_score}))}));
-  const input:IngestInput={requestId:'00000000-0000-4000-8000-000000000001',seasons:wireSeasons,expectedRevision:0,draftLabel:'WinMix import'};
-  const normalized=normalizeInput(input);
-  const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([data.session.user.id,normalized.payload]))));
-  hash[6]=(hash[6]&15)|128; hash[8]=(hash[8]&63)|128;
-  const hex=[...hash.slice(0,16)].map(b=>b.toString(16).padStart(2,'0')).join('');
-  input.requestId=`${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+export async function prepareIngestRequest(
+  seasons: readonly SeasonInput[],
+  options?: { seasonShift?: number }
+): Promise<IngestInput> {
+  const { data, error } = await getSupabase().auth.getSession();
+  if (error || !data.session) throw new Error('A feltöltéshez jelentkezz be.');
+  const shift = Math.max(0, options?.seasonShift ?? 0);
+  const wireSeasons = seasons.map((s) => {
+    const finalIndex = s.seasonIndex + shift;
+    const finalSourceKey = shift > 0
+      ? (s.sourceSeasonKey ? `${s.sourceSeasonKey}_shifted${shift}` : `${s.league}_${finalIndex}`)
+      : (s.sourceSeasonKey ?? `${s.league}_${finalIndex}`);
+    return {
+      league: s.league,
+      seasonIndex: finalIndex,
+      name: s.name,
+      fileName: s.fileName,
+      contentHash: s.contentHash,
+      orderMode: s.orderMode,
+      sourceSeasonKey: finalSourceKey,
+      matches: s.matches.map((m) => ({
+        match_no: m.match_no,
+        date: m.date,
+        kickoffIso: m.kickoffIso,
+        rowIndex: m.rowIndex,
+        sourceFileId: m.sourceFileId,
+        home_team: m.home_team,
+        away_team: m.away_team,
+        ht_home_score: m.ht_home_score,
+        ht_away_score: m.ht_away_score,
+        home_score: m.home_score,
+        away_score: m.away_score,
+      })),
+    };
+  });
+  const input: IngestInput = {
+    requestId: '00000000-0000-4000-8000-000000000001',
+    seasons: wireSeasons,
+    expectedRevision: 0,
+    draftLabel: 'WinMix import',
+  };
+  const normalized = normalizeInput(input);
+  const hash = new Uint8Array(
+    await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(JSON.stringify([data.session.user.id, normalized.payload]))
+    )
+  );
+  hash[6] = (hash[6] & 15) | 128;
+  hash[8] = (hash[8] & 63) | 128;
+  const hex = [...hash.slice(0, 16)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  input.requestId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   return input;
 }
 /** Caller must retain the SAME input/requestId when the response is lost. No auto-retry. */

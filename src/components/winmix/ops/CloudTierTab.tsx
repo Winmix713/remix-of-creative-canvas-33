@@ -5,6 +5,22 @@ import { cloudAccess, cloudEndpointSummary, fetchCloudVersions, fetchCloudSeason
   type IngestInput, type League, type SeasonInput, type CloudSeasonDownload } from '../../../utils/supabaseTier';
 import { compareCloudRatings } from '../../../utils/cloudComparison';
 
+const SQL_FIX_SCRIPT = `-- WinMix — Supabase Szezonkulcs és Egyediségi Kényszer Javítás (Végleges)
+BEGIN;
+ALTER TABLE IF EXISTS public.winmix_seasons DROP CONSTRAINT IF EXISTS winmix_ingest_season_identity_uq;
+ALTER TABLE IF EXISTS public.winmix_seasons DROP CONSTRAINT IF EXISTS winmix_seasons_league_season_index_key;
+ALTER TABLE IF EXISTS public.winmix_seasons DROP CONSTRAINT IF EXISTS winmix_seasons_source_season_key_key;
+ALTER TABLE IF EXISTS public.winmix_teams DROP CONSTRAINT IF EXISTS winmix_teams_canonical_key_key;
+DROP INDEX IF EXISTS public.winmix_ingest_season_identity_uq;
+DROP INDEX IF EXISTS public.winmix_seasons_league_season_index_key;
+DROP FUNCTION IF EXISTS public.winmix_ingest_season_v1(text, integer, text, text, jsonb);
+
+CREATE UNIQUE INDEX IF NOT EXISTS winmix_cloud_team_identity_uq ON public.winmix_teams(league, canonical_key);
+CREATE UNIQUE INDEX IF NOT EXISTS winmix_cloud_season_source_uq ON public.winmix_seasons(data_version_id, league, source_season_key);
+CREATE UNIQUE INDEX IF NOT EXISTS winmix_cloud_season_index_uq ON public.winmix_seasons(data_version_id, league, season_index);
+CREATE UNIQUE INDEX IF NOT EXISTS winmix_cloud_match_no_uq ON public.winmix_matches(data_version_id, season_id, match_no);
+COMMIT;`;
+
 export function CloudTierTab({league,seasons=[],crossCheck:_legacyCrossCheck,onImport}:{
   league:League; seasons?:readonly SeasonInput[]; crossCheck?:unknown;
   onImport?:(downloads:CloudSeasonDownload[])=>Promise<void>;
@@ -14,6 +30,9 @@ export function CloudTierTab({league,seasons=[],crossCheck:_legacyCrossCheck,onI
   const [signedIn,setSignedIn]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const [snapshot,setSnapshot]=useState<CloudRatingSnapshot|null>(null),[downloads,setDownloads]=useState<CloudSeasonDownload[]>([]);
   const [pending,setPending]=useState<IngestInput|null>(null);
+  const [indexShift, setIndexShift] = useState<number>(0);
+  const [showSqlHelp, setShowSqlHelp] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
   const running=useRef(false),generation=useRef(0);
   const endpoint=cloudEndpointSummary();
   const selectedVersion=versions.find(v=>v.id===selected);
@@ -47,13 +66,21 @@ export function CloudTierTab({league,seasons=[],crossCheck:_legacyCrossCheck,onI
   },[run,refresh,endpoint?.url]);
   useEffect(()=>{generation.current++;setSnapshot(null);setDownloads([]);},[league,selected]);
 
-  const upload=()=>run('Feltöltés',async()=>{
-    const input=pending??await prepareIngestRequest(seasons);
+  const upload = (shiftOverride?: number) => run('Feltöltés', async () => {
+    const shift = shiftOverride !== undefined ? shiftOverride : indexShift;
+    const input = (pending && shift === 0 && shiftOverride === undefined)
+      ? pending
+      : await prepareIngestRequest(seasons, { seasonShift: shift });
     setPending(input);
-    const receipt=await ingestSeasonsToCloud(input);
+    const receipt = await ingestSeasonsToCloud(input);
     setPending(null);
-    await refresh();setSelected(receipt.dataVersionId);
-    setNotice(`${receipt.replayed?'Korábbi import nyugtája':'Draft mentve'}: ${receipt.seasons} szezon, ${receipt.matches} mérkőzés. A publikált verzió nem változott. A verziólistában látható az aktuális állapot.`);
+    await refresh();
+    setSelected(receipt.dataVersionId);
+    setNotice(
+      `${receipt.replayed ? 'Korábbi import nyugtája' : 'Draft mentve'}: ${receipt.seasons} szezon, ${receipt.matches} mérkőzés${
+        shift > 0 ? ` (index-eltolás: +${shift})` : ''
+      }. A publikált verzió nem változott. A verziólistában látható az aktuális állapot.`
+    );
   });
   const download=()=>run('Szezonok letöltése',async()=>{
     const requestGeneration=generation.current;
@@ -210,6 +237,20 @@ export function CloudTierTab({league,seasons=[],crossCheck:_legacyCrossCheck,onI
       </button>
 
       <button
+        type="button"
+        disabled={!!busy || !canWrite || !seasons.length}
+        className="px-3.5 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white font-medium text-xs transition disabled:opacity-50"
+        title="Szezonindex és forráskulcs eltolása (+100) az adatbázisbeli egyediségi ütközések elkerülésére"
+        onClick={() => {
+          setPending(null);
+          setIndexShift(100);
+          void upload(100);
+        }}
+      >
+        Feltöltés +100 index-eltolással (Ütközés-elkerülő)
+      </button>
+
+      <button
         disabled={!!busy || !selected}
         className="px-3.5 py-1.5 rounded-md bg-secondary hover:bg-muted text-foreground border border-border text-xs font-medium transition disabled:opacity-50"
         onClick={() => void download()}
@@ -229,6 +270,39 @@ export function CloudTierTab({league,seasons=[],crossCheck:_legacyCrossCheck,onI
       >
         SQL értékelés betöltése
       </button>
+
+      <button
+        type="button"
+        className="px-3.5 py-1.5 rounded-md bg-secondary hover:bg-muted text-foreground border border-border text-xs font-medium transition"
+        onClick={() => setShowSqlHelp((prev) => !prev)}
+      >
+        {showSqlHelp ? 'SQL javítókód elrejtése' : 'SQL javítókód (Adatbázis korrekció)'}
+      </button>
+    </div>
+
+    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground pt-0.5">
+      <span>Index-eltolás beállítása:</span>
+      {[0, 100, 1000].map((s) => (
+        <button
+          key={s}
+          type="button"
+          disabled={!!busy}
+          onClick={() => {
+            setIndexShift(s);
+            setPending(null);
+          }}
+          className={`px-2 py-0.5 rounded border text-xs font-mono transition ${
+            indexShift === s
+              ? 'bg-primary text-primary-foreground border-primary font-bold'
+              : 'bg-secondary text-secondary-foreground border-border hover:bg-muted'
+          }`}
+        >
+          {s === 0 ? 'Nincs (0)' : `+${s}`}
+        </button>
+      ))}
+      <span className="text-[11px] text-muted-foreground italic">
+        (Ha a Supabase adatbázisban a szezon indexe [pl. 1] ütközik korábbi verzióval, a +100-as eltolás azonnal átviszi a feltöltést)
+      </span>
     </div>
 
     {!seasons.length && (
@@ -252,8 +326,67 @@ export function CloudTierTab({league,seasons=[],crossCheck:_legacyCrossCheck,onI
     )}
 
     {busy && <p role="status" className="text-xs text-signal animate-pulse font-medium">{busy}…</p>}
-    {error && <p role="alert" className="text-xs text-destructive p-2.5 rounded-md bg-destructive/10 border border-destructive/20 font-medium">{error}</p>}
+
+    {error && (
+      <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive font-medium space-y-2" role="alert">
+        <p>{error}</p>
+        {(error.includes('PT422') || error.includes('422') || error.includes('duplicate') || error.includes('kényszer') || error.includes('rolled back')) && (
+          <div className="pt-2 border-t border-destructive/20 flex flex-wrap gap-2 items-center text-foreground">
+            <span className="text-xs text-muted-foreground font-normal">
+              Azonnali megoldás:
+            </span>
+            <button
+              type="button"
+              disabled={!!busy}
+              className="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium transition"
+              onClick={() => {
+                setPending(null);
+                setIndexShift(100);
+                void upload(100);
+              }}
+            >
+              Feltöltés újrapróbálása +100 index-eltolással
+            </button>
+            <button
+              type="button"
+              className="px-2.5 py-1 rounded bg-secondary hover:bg-muted text-foreground border border-border text-xs transition"
+              onClick={() => setShowSqlHelp(true)}
+            >
+              SQL javítókód megnyitása (Végleges javítás)
+            </button>
+          </div>
+        )}
+      </div>
+    )}
+
     {notice && <p role="status" className="text-xs text-positive p-2.5 rounded-md bg-positive/10 border border-positive/20 font-medium">{notice}</p>}
+
+    {showSqlHelp && (
+      <div className="p-3.5 rounded-lg border border-border bg-surface-1 text-xs space-y-2.5">
+        <div className="flex items-center justify-between">
+          <p className="font-semibold text-foreground">
+            Végleges Supabase adatbázis-javító SQL (Szezonkulcs egyediség &amp; Diagnosztika)
+          </p>
+          <button
+            type="button"
+            className="px-2.5 py-1 rounded bg-secondary hover:bg-muted text-foreground border border-border text-xs transition"
+            onClick={async () => {
+              await navigator.clipboard.writeText(SQL_FIX_SCRIPT);
+              setCopiedSql(true);
+              setTimeout(() => setCopiedSql(false), 2000);
+            }}
+          >
+            {copiedSql ? '✓ Kimásolva!' : 'SQL másolása vágólapra'}
+          </button>
+        </div>
+        <p className="text-muted-foreground text-[11px]">
+          Futtasd le a Supabase Dashboard &gt; SQL Editor felületén. Eltávolítja a régi verziózatlan kényszereket (<code>winmix_seasons_league_season_index_key</code>, <code>winmix_ingest_season_identity_uq</code>), és a <code>winmix_ingest_v2</code> függvénybe beépíti a <code>GET STACKED DIAGNOSTICS</code>-ot a pontos hibaüzenetekhez.
+        </p>
+        <pre className="p-2.5 rounded bg-black/40 border border-border text-muted-foreground font-mono text-[11px] overflow-x-auto whitespace-pre max-h-60">
+          {SQL_FIX_SCRIPT}
+        </pre>
+      </div>
+    )}
 
     {!!downloads.length && (
       <div className="flex gap-2.5 pt-2">
