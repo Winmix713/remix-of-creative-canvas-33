@@ -44,6 +44,7 @@ alter table public.winmix_seasons drop constraint if exists winmix_seasons_leagu
 -- Team keys are league-scoped; the legacy global key rejects valid cross-league imports.
 alter table public.winmix_teams drop constraint if exists winmix_teams_canonical_key_key;
 alter table public.winmix_seasons drop constraint if exists winmix_ingest_season_identity_uq;
+create unique index if not exists winmix_cloud_team_identity_uq on public.winmix_teams(league,canonical_key);
 create unique index if not exists winmix_cloud_season_source_uq on public.winmix_seasons(data_version_id,league,source_season_key);
 create unique index if not exists winmix_cloud_season_index_uq on public.winmix_seasons(data_version_id,league,season_index);
 create unique index if not exists winmix_cloud_match_no_uq on public.winmix_matches(data_version_id,season_id,match_no);
