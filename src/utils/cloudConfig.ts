@@ -1,11 +1,15 @@
 export interface CloudEnv { url: string; anonKey: string; source: 'env' }
 
+const DEFAULT_SUPABASE_URL = 'https://dpmyxypqcsugycqhifaf.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'sb_publishable_Xll_LdXYYBtizcduj2aPDQ_tqkI5r1S';
+
 /** Configuration screening, not JWT signature verification. Never accept a server key. */
 export function isPublicKey(key: string, projectRef?: string): boolean {
-  if (/^sb_publishable_[A-Za-z0-9_-]+$/.test(key)) return true;
+  const cleanKey = key.replace(/^[=\s"']+|[=\s"']+$/g, '');
+  if (/^sb_publishable_[A-Za-z0-9_-]+$/.test(cleanKey)) return true;
   try {
-    if (key.split('.').length !== 3) return false;
-    const body = key.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    if (cleanKey.split('.').length !== 3) return false;
+    const body = cleanKey.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
     const claims = JSON.parse(atob(body.padEnd(Math.ceil(body.length / 4) * 4, '=')));
     return claims.role === 'anon' && typeof claims.exp === 'number'
       && claims.exp > Date.now() / 1000
@@ -14,8 +18,9 @@ export function isPublicKey(key: string, projectRef?: string): boolean {
 }
 
 export function resolveCloudEnv(env: Record<string, string | undefined>): CloudEnv | null {
-  const rawUrl = env.VITE_SUPABASE_URL?.trim() ?? '';
-  const key = env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || env.VITE_SUPABASE_ANON_KEY?.trim() || '';
+  const rawUrl = (env.VITE_SUPABASE_URL?.trim() ?? '').replace(/^[=\s"']+|[=\s"']+$/g, '');
+  const rawKey = env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || env.VITE_SUPABASE_ANON_KEY?.trim() || '';
+  const key = rawKey.replace(/^[=\s"']+|[=\s"']+$/g, '');
   try {
     const url = new URL(rawUrl);
     const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
@@ -29,8 +34,9 @@ export function resolveCloudEnv(env: Record<string, string | undefined>): CloudE
 
 export function readCloudEnv(): CloudEnv | null {
   return resolveCloudEnv({
-    VITE_SUPABASE_URL: import.meta.env?.VITE_SUPABASE_URL,
-    VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY,
+    VITE_SUPABASE_URL: import.meta.env?.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL,
+    VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY || DEFAULT_SUPABASE_KEY,
     VITE_SUPABASE_ANON_KEY: import.meta.env?.VITE_SUPABASE_ANON_KEY,
   });
 }
+

@@ -53,7 +53,7 @@ export async function probeCloudTier(): Promise<CloudTierHealth> {
   try { await cloudAccess(); await fetchCloudVersions(); return { status:'online',degraded:false,lastError:null,checkedAt:new Date().toISOString() }; }
   catch(e) { return {status:'degraded',degraded:true,lastError:e instanceof Error ? e.message : String(e),checkedAt:new Date().toISOString()}; }
 }
-const Version = z.object({ id:z.string().uuid(),versionKey:z.string(),status:z.enum(['draft','sealed','superseded','rejected']),
+const Version = z.object({ id:z.string().min(1),versionKey:z.string(),status:z.enum(['draft','sealed','superseded','rejected']),
   isCurrent:z.boolean(),revision:z.number().int().nonnegative(),fingerprint:z.string().nullable(),seasonCount:z.number().int().nonnegative(),matchCount:z.number().int().nonnegative() });
 export type CloudVersion = z.infer<typeof Version>;
 export async function fetchCloudVersions() { return z.array(Version).parse(await rpc('winmix_cloud_versions')); }
@@ -62,7 +62,7 @@ async function resolveVersion(id?: string) {
   const current = (await fetchCloudVersions()).find(v=>v.isCurrent && v.status==='sealed');
   return current?.id ?? null;
 }
-const Meta = z.object({ id:z.string().uuid(),dataVersionId:z.string().uuid(),revision:z.number().int().nonnegative(),
+const Meta = z.object({ id:z.string().min(1),dataVersionId:z.string().min(1),revision:z.number().int().nonnegative(),
   league:z.enum(['angol','spanyol']),seasonIndex:z.number().int().nonnegative(),sourceSeasonKey:z.string(),name:z.string(),fileName:z.string(),
   contentHash:z.string().nullable(),matchCount:z.number().int().nonnegative(),orderMode:z.enum(['chronological','source-order']),createdAt:z.string() });
 export type CloudSeasonMeta = z.infer<typeof Meta>;
@@ -77,8 +77,8 @@ export interface CloudSeasonDownload { meta:CloudSeasonMeta; csvText:string; mat
 /** RFC 4180 quoting, including commas, quotes and embedded newlines. */
 export const csvCell = (v: unknown): string => { const s=v==null?'':String(v); return /[",\r\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s; };
 export async function fetchCloudSeasonData(meta:CloudSeasonMeta):Promise<CloudSeasonDownload> {
-  const data=z.object({meta:z.object({id:z.string().uuid(),matchCount:z.number().int(),contentHash:z.string().nullable()}),
-    matches:z.array(Match),revision:z.number().int(),dataVersionId:z.string().uuid()}).parse(await rpc('winmix_cloud_season',{
+  const data=z.object({meta:z.object({id:z.string().min(1),matchCount:z.number().int(),contentHash:z.string().nullable()}),
+    matches:z.array(Match),revision:z.number().int(),dataVersionId:z.string().min(1)}).parse(await rpc('winmix_cloud_season',{
       p_season:meta.id,p_version:meta.dataVersionId,p_revision:meta.revision }));
   if(data.meta.id!==meta.id || data.dataVersionId!==meta.dataVersionId || data.revision!==meta.revision || data.meta.contentHash!==meta.contentHash || data.matches.length!==meta.matchCount) throw new Error('A felhőadat megváltozott; töltsd újra a szezonlistát.');
   if(new Set(data.matches.map(m=>m.match_no)).size!==meta.matchCount) throw new Error('Ismétlődő mérkőzéssorszám a válaszban.');
@@ -89,7 +89,7 @@ export async function fetchCloudSeasonData(meta:CloudSeasonMeta):Promise<CloudSe
 const Rating=z.object({canonicalKey:z.string().min(1),displayName:z.string(),totalPlayed:z.number().int().nonnegative(),
   netHome:z.number().finite(),netAway:z.number().finite(),ppg:z.number().finite(),autoWeightIndex:z.number().min(0).max(10)});
 export type CloudTeamRating=z.infer<typeof Rating>;
-const RatingSnapshot=z.object({dataVersionId:z.string().uuid(),revision:z.number().int(),league:z.enum(['angol','spanyol']),ratings:z.array(Rating),
+const RatingSnapshot=z.object({dataVersionId:z.string().min(1),revision:z.number().int(),league:z.enum(['angol','spanyol']),ratings:z.array(Rating),
   basis:z.array(z.tuple([z.number().int(),z.number().int(),z.string(),z.string(),z.number().int(),z.number().int()]))});
 export type CloudRatingSnapshot=z.infer<typeof RatingSnapshot>;
 export async function fetchCloudRatingSnapshot(league:League,versionId:string) {
@@ -100,9 +100,9 @@ export async function fetchCloudRatingSnapshot(league:League,versionId:string) {
 export async function fetchCloudTeamRatings(league:League):Promise<CloudTeamRating[]> {
   const version=await resolveVersion(); return version?(await fetchCloudRatingSnapshot(league,version)).ratings:[];
 }
-const Receipt=z.object({success:z.literal(true),dataVersionId:z.string().uuid(),revision:z.number().int().positive(),status:z.literal('draft'),isCurrent:z.literal(false),
+const Receipt=z.object({success:z.literal(true),dataVersionId:z.string().min(1),revision:z.number().int().positive(),status:z.literal('draft'),isCurrent:z.literal(false),
   seasons:z.number().int().positive(),teams:z.number().int().positive(),matches:z.number().int().positive(),rejected:z.literal(0),repaired:z.literal(0),
-  errors:z.array(z.string()).length(0),manifestErrors:z.array(z.string()).length(0),replayed:z.boolean(),requestId:z.string().uuid()});
+  errors:z.array(z.string()).length(0),manifestErrors:z.array(z.string()).length(0),replayed:z.boolean(),requestId:z.string().min(1)});
 export type IngestResult=z.infer<typeof Receipt>;
 /** Stable per-user key survives reloads; equal source snapshots return the same receipt. */
 export async function prepareIngestRequest(seasons:readonly SeasonInput[]):Promise<IngestInput> {
