@@ -28,10 +28,7 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
   },
-  test: {
-    environment: 'jsdom',
-    globals: true,
-    setupFiles: ['./vitest.setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
-  },
+  // NOTE: test discovery and runner settings live in vitest.config.ts only
+  // (F05). Keeping a second `test` block here silently diverged from the
+  // configuration CI actually selects.
 })
