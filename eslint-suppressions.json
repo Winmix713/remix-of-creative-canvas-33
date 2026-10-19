@@ -1,0 +1,245 @@
+{
+  "scripts/supabase/ingest.mjs": {
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "scripts/supabase/schema-check.mjs": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/supabase/security-audit.mjs": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "scripts/test-discovery-manifest.mjs": {
+    "no-control-regex": {
+      "count": 1
+    }
+  },
+  "scripts/verify-cloud.mjs": {
+    "no-empty": {
+      "count": 1
+    }
+  },
+  "src/_designSystem/ds-6551b66a-cfd3-4df9-a9b1-9ead8d7fe7e9/index.d.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 23
+    }
+  },
+  "src/_designSystem/ds-6551b66a-cfd3-4df9-a9b1-9ead8d7fe7e9/library.d.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 23
+    }
+  },
+  "src/components/ui/calendar.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/ui/carousel.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/ui/chart.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    }
+  },
+  "src/components/ui/sidebar.tsx": {
+    "react-hooks/purity": {
+      "count": 1
+    }
+  },
+  "src/components/winmix/AuditCharts.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/winmix/BttsShadowValidationPanel.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 3
+    }
+  },
+  "src/components/winmix/LedgerTrendChart.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/components/winmix/MetricCard.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/winmix/NavRail.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/winmix/PageHeader.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/winmix/Panel.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/winmix/PanelState.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/winmix/TeamSelect.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/winmix/ops/CloudTierTab.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/components/winmix/ops/OpsTabs.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/hooks/use-mobile.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/hooks/useCloudTier.ts": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/hooks/useFocusTrap.ts": {
+    "react-hooks/refs": {
+      "count": 1
+    }
+  },
+  "src/hooks/useOpsActions.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/hooks/useRoundAnalysis.ts": {
+    "react-hooks/refs": {
+      "count": 5
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/hooks/useWinmixEngine.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/refs": {
+      "count": 9
+    }
+  },
+  "src/integrations/supabase/previewAuthStorage.ts": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/pages/HeadToHead.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/pages/LeagueAnalyzer.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/useScreenInit.d.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/utils/autoWeights.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/utils/checkpointStore.ts": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/utils/cloudSync.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/utils/coreEvidenceTests.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/utils/importJson.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/utils/pipelineRunner.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/utils/seasonManifest.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/utils/storage.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/utils/supabaseTier.ts": {
+    "preserve-caught-error": {
+      "count": 1
+    }
+  },
+  "supabase/functions/winmix-engine/index.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 8
+    }
+  },
+  "supabase/functions/winmix-ingest/contract.ts": {
+    "no-control-regex": {
+      "count": 1
+    }
+  },
+  "tests/database.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "tests/handler.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  }
+}
