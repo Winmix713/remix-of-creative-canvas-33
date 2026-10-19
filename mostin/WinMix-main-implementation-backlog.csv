@@ -1,0 +1,25 @@
+﻿ID,Priority,Evidence status,Task,Suggested ownership,Files or area,Acceptance criterion,Owner,Implementation status
+F01,P0,Confirmed,Repair CI runtime and missing script,Build/CI,package.json; .github/workflows/supabase-audit.yml,Clean checkout CI uses supported Node and no undefined commands,,Not started
+F02,P0,Confirmed,Atomic run completion and promotion,Backend/DB,winmix-engine/index.ts; central-engine migration,Success and publication are atomic; failure retains prior run,,Not started
+F03,P0,Confirmed packaging gap,Generate edge engine bundle in deployment,Build/Edge,scripts/build-engine-core.mjs; package.json; CI,Clean deployment creates and validates bundle,,Not started
+F04,P1,Confirmed,Restore real ESLint,Build/CI,eslint.config.js; .eslintrc.cjs; package.json,Independent lint and typecheck gates detect fixtures,,Not started
+F05,P1,Confirmed,Include omitted tests and unify configuration,Testing,vitest.config.ts; vite.config.ts; src/__tests__,All maintained test files appear in CI manifest,,Not started
+F06,P1,Confirmed limitation,Verify full migration and bootstrap paths,Database,supabase/migrations; tests/database.test.ts,Disposable upgrade and bootstrap suites match approved schema,,Not started
+F07,P1,Conflicting literals confirmed,Align snapshot and engine compatibility,Backend/DB,winmix-engine/index.ts; snapshot producers,Supported versions succeed without relabeling history,,Not started
+F08,P1,Verification required,Test engine lifecycle and RPCs,Testing/DB,tests; engine handler; engine RPCs,Baseline promotion mismatch reproduced and fixed,,Not started
+F09,P1,Verification required,Recover expired jobs and failed attempts,Backend/Ops,job claim SQL; edge engine; scheduler,Killed workers recover without stale publication,,Not started
+F10,P1,Weak promotion check confirmed,Validate complete outputs before publication,Backend/DB,promotion RPC; outputsOf; insertChunks,Missing output chunks block promotion,,Not started
+F11,P1,Confirmed,Explicit public environment configuration,Frontend/Build,vite.config.ts; cloudConfig.ts,Missing production values fail; no implicit project fallback,,Not started
+F12,P1,Confirmed inconsistency,Specify gateway auth and CORS,Security/Edge,config.toml; edge handlers; shared auth,Unauthorized callers fail and origin behavior is documented,,Not started
+F13,P1,Confirmed documentation gap,Document variables and secret ownership,Ops/Security,.env.example; .gitignore; deployment docs,Staging configuration and rotation runbook verified,,Not started
+F14,P1,Limited scanner confirmed,Improve source and dependency scanning,Security/CI,security-audit.mjs; CI,Secret fixtures detected without exposing credentials,,Not started
+F15,P1,Partly resolved; verify end to end,Reconcile Policy A and publication paths,Domain/Testing,coreEligibility.ts; slip.ts; coreTrace.ts; tests,High-probability excluded evidence never publishes,,Not started
+F16,P1,Confirmed mismatch,Approve threshold and invalid-input semantics,Domain,coreEligibility.ts; policy spec,Boundary and invalid input tests match approved behavior,,Not started
+F17,P1,Verification required,Validate shadow policies out of sample,Research/Domain,decision rules; evaluation tooling,Predeclared holdout evaluation supports promotion,,Not started
+F18,P2,Pattern confirmed; profile impact,Bound and recover cloud bootstrap,Frontend,App.tsx; cloud utilities,"Bounded requests, cancel and retry are verified",,Not started
+F19,P1 decision / P2 implementation,Verification required,Separate published cloud from local research,Architecture,App.tsx; engine hook; cloud context,Prediction provenance and authority are explicit,,Not started
+F20,P2,Maintainability concern,Split large modules with output parity,Frontend/Domain,slip.ts; LeagueAnalyzer.tsx; useWinmixEngine.ts,Golden fixture outputs stay identical,,Not started
+F21,P2,Proposed,Add page recovery and accessible workflow tests,Frontend/QA,App.tsx; lazy pages; dialogs; UI tests,Import/render failures recover; keyboard workflows pass,,Not started
+F22,P1,Verification required / proposed,Separate replay and prospective accounting,Data/Domain,ledger.ts; Slip types; storage; UI,Prospective metrics use immutable issuance provenance,,Not started
+F23,P2,Artifacts confirmed; verify ownership,Create master spec and hygiene policy,Architecture/Docs,docs; root SQL; generator metadata; types,Canonical contracts and migration ownership are clear,,Not started
+F24,P3,Proposed,Build audited intelligence layer,Product/Research,model registry; monitoring; strategy proposals,Champion history immutable; promotions audited and reversible,,Not started
