@@ -21,13 +21,17 @@ const IGNORE_PATHS = [
   'node_modules',
   '.git',
   'scripts/supabase/lib/config.mjs',
-  // Documentation files quote placeholder credential assignments, e.g.
-  // `SUPABASE_SERVICE_ROLE_KEY="your_service_role_key_here"` in
-  // public/newdocs (copied into dist/) and src/docs/supabase-migration.md.
-  // The assignment pattern below reports those quoted examples as leaks, so
-  // the audit failed on a clean checkout. Narrowing the false positive here
-  // keeps the scanner logic untouched; making the pattern placeholder-aware is
-  // recorded as separate follow-up work.
+  // Documentation files quote placeholder credential assignments, e.g. a
+  // service-role key set to a "<placeholder>" value, in public/newdocs
+  // (copied into dist/) and src/docs/supabase-migration.md. The assignment
+  // pattern below reports those quoted examples as leaks, so the audit failed
+  // on a clean checkout. Narrowing the false positive here keeps the scanner
+  // logic untouched; making the pattern placeholder-aware is recorded as
+  // separate follow-up work.
+  //
+  // NOTE: never write such an assignment literally in this file (not even in a
+  // comment) — this scanner scans its own source under `scripts/`, so a literal
+  // quoted example here is reported as a leak by the pattern it documents.
   'newdocs/',
   'src/docs/supabase-migration.md',
 ];
