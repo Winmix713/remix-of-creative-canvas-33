@@ -16,7 +16,7 @@ WinMix is an analytics and match prediction platform built as a high-performance
 
 ## Technology Stack
 
-- **Runtime & Build**: Node.js 22, Vite, TypeScript
+- **Runtime & Build**: Node.js 22 (`>=22.19.0`, pinned in `.nvmrc`), Vite, TypeScript
 - **UI & Layout**: React 18, Tailwind CSS, Radix UI primitives, Lucide React icons, Framer Motion
 - **Data & Visualizations**: Recharts, TanStack Query
 - **Testing**: Vitest, React Testing Library, PGlite (local Postgres integration tests)
@@ -33,8 +33,9 @@ WinMix is an analytics and match prediction platform built as a high-performance
    npm run dev
    ```
 
-3. Type-check and compile:
+3. Type-check, lint and compile:
    ```sh
+   npm run typecheck
    npm run lint
    npm run build
    ```

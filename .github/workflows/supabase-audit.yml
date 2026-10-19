@@ -1,4 +1,4 @@
-name: Supabase Audit
+name: Static checks and Supabase audit
 
 on:
   push:
@@ -6,22 +6,31 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
-  audit:
+  # This job is intentionally credential-free: it only needs the repository
+  # contents. No staging secrets are referenced, so the static security scan
+  # can never be blocked by (or leak) privileged environment credentials.
+  static-and-audit:
+    name: Static checks (Node 22)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - name: Set up Node 22 (pinned in .nvmrc)
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-
-      - run: npm ci
-
-      - run: npm run build
-
-      - name: Security audit
-        run: npm run supabase:audit
-
+          node-version-file: '.nvmrc'
+      - name: Verify runtime satisfies package.json engines
+        run: node -e "const [maj,min]=process.versions.node.split('.').map(Number); if(maj<22||(maj===22&&min<19)){console.error('Node '+process.versions.node+' does not satisfy engines >=22.19.0');process.exit(1);} console.log('Node '+process.versions.node+' satisfies engines >=22.19.0');"
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
       - name: Tests
         run: npm run test
+      - name: Build
+        run: npm run build
+      - name: Static security audit
+        run: npm run supabase:audit
