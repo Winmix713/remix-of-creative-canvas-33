@@ -1,4 +1,4 @@
-﻿ID,Priority,Evidence status,Task,Suggested ownership,Files or area,Acceptance criterion,Owner,Implementation status
+ID,Priority,Evidence status,Task,Suggested ownership,Files or area,Acceptance criterion,Owner,Implementation status
 F01,P0,Confirmed,Repair CI runtime and missing script,Build/CI,package.json; .github/workflows/supabase-audit.yml,Clean checkout CI uses supported Node and no undefined commands,,Not started
 F02,P0,Confirmed,Atomic run completion and promotion,Backend/DB,winmix-engine/index.ts; central-engine migration,Success and publication are atomic; failure retains prior run,,Not started
 F03,P0,Confirmed packaging gap,Generate edge engine bundle in deployment,Build/Edge,scripts/build-engine-core.mjs; package.json; CI,Clean deployment creates and validates bundle,,Not started

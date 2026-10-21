@@ -167,6 +167,52 @@ export async function fetchCloudRatingSnapshot(league:League,versionId:string) {
 export async function fetchCloudTeamRatings(league:League):Promise<CloudTeamRating[]> {
   const version=await resolveVersion(); return version?(await fetchCloudRatingSnapshot(league,version)).ratings:[];
 }
+
+export interface CloudFreshnessResult {
+  upToDate: boolean;
+  cloudSeasonCount: number;
+  localSeasonCount: number;
+  newSeasons: string[];
+  changedSeasons: string[];
+}
+
+/**
+ * Compares local season content hashes against the current sealed cloud
+ * version's season list. Returns whether the local data is up-to-date and
+ * which seasons are new or changed on the cloud side. This is a read-only
+ * check — it never modifies local data. The caller decides what to do with
+ * the result.
+ */
+export async function checkCloudFreshness(
+  localSeasons: ReadonlyArray<{ league: string; contentHash: string | null }>
+): Promise<CloudFreshnessResult | null> {
+  if (!isCloudTierConfigured()) return null;
+  const cloudMetas = await fetchCloudSeasonList();
+  const cloudByKey = new Map<string, string | null>();
+  for (const m of cloudMetas) {
+    cloudByKey.set(`${m.league}:${m.sourceSeasonKey}`, m.contentHash);
+  }
+  const localKeys = new Set<string>();
+  const changedSeasons: string[] = [];
+  for (const s of localSeasons) {
+    const key = `${s.league}:${s.contentHash ?? ''}`;
+    localKeys.add(key);
+  }
+  const newSeasons: string[] = [];
+  for (const m of cloudMetas) {
+    const key = `${m.league}:${m.sourceSeasonKey}`;
+    if (!localKeys.has(`${m.league}:${m.contentHash ?? ''}`)) {
+      newSeasons.push(m.name);
+    }
+  }
+  return {
+    upToDate: newSeasons.length === 0 && changedSeasons.length === 0,
+    cloudSeasonCount: cloudMetas.length,
+    localSeasonCount: localSeasons.length,
+    newSeasons,
+    changedSeasons,
+  };
+}
 const Receipt=z.object({success:z.literal(true),dataVersionId:z.string().min(1),revision:z.number().int().positive(),status:z.literal('draft'),isCurrent:z.literal(false),
   seasons:z.number().int().positive(),teams:z.number().int().positive(),matches:z.number().int().positive(),rejected:z.literal(0),repaired:z.literal(0),
   errors:z.array(z.string()).length(0),manifestErrors:z.array(z.string()).length(0),replayed:z.boolean(),requestId:z.string().min(1)});
