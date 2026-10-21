@@ -9,7 +9,7 @@ import React, {
 import { Toaster, toast } from 'sonner';
 
 import { fetchRemoteSeasonFiles } from './utils/remoteSeasons';
-import { fetchCloudSeasonData, fetchCloudSeasonList, isCloudTierConfigured } from './utils/supabaseTier';
+import { fetchCloudSeasonList, fetchCloudSeasonsConcurrently, isCloudTierConfigured } from './utils/supabaseTier';
 
 import { CloudTierProvider } from './contexts/CloudTierContext';
 import { DialogProvider } from './contexts/DialogContext';
@@ -174,15 +174,26 @@ function StudioShell() {
     cloudBootstrapAttemptedRef.current = true;
 
     void (async () => {
+      let toastId: string | number | undefined;
       try {
         const seasons = await fetchCloudSeasonList();
         if (seasons.length === 0) return;
-        const downloads = await Promise.all(seasons.map(fetchCloudSeasonData));
+        toastId = toast.loading(`Felhő-adatok letöltése… 0 / ${seasons.length}`);
+        // Bounded concurrency (not one request per season at once); the result
+        // keeps the season order and is all-or-nothing, like the old Promise.all.
+        const downloads = await fetchCloudSeasonsConcurrently(seasons, {
+          onProgress: (done, total) => {
+            toast.loading(`Felhő-adatok letöltése… ${done} / ${total}`, { id: toastId });
+          }
+        });
+        toast.dismiss(toastId);
+        toastId = undefined;
         const files = downloads.map((download) => new File(
           [download.csvText], download.meta.fileName, { type: 'text/csv' }
         ));
         await importFiles(files, 'auto');
       } catch (error) {
+        if (toastId !== undefined) toast.dismiss(toastId);
         toast.error(
           `A kezdeti felhő-adatbetöltés sikertelen: ${error instanceof Error ? error.message : 'ismeretlen hiba'}`
         );

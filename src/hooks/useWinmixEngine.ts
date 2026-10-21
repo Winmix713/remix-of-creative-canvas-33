@@ -13,6 +13,7 @@ import {
   EXPECTED_MATCH_COUNT,
   FEATURE_SCHEMA_VERSION,
   MATCH_COUNT_TOLERANCE,
+  PIPELINE_CONTRACT_VERSION,
   READ_CONCURRENCY,
   SCHEMA_VERSION,
   STORAGE_SOFT_CAP_BYTES } from
@@ -37,6 +38,11 @@ import {
 import { computeMarketFeedback, patternWeightsFromSlips } from '../utils/ledger';
 import { defaultSlipMarkets } from '../utils/marketCatalog';
 import type { PipelineRunKind } from '../utils/pipeline';
+import {
+  clearPipelineCache,
+  loadPipelineCache,
+  savePipelineCache } from
+'../utils/pipelineCache';
 import { runLeaguePipeline, type PipelineRunMode } from '../utils/pipelineRunner';
 import {
   DEFAULT_SETTINGS,
@@ -175,6 +181,24 @@ function initialDomainState(): DomainState {
     round: emptyRound(),
     slips: []
   };
+}
+
+/**
+ * True when the IndexedDB pipeline cache was written at or after the
+ * localStorage snapshot, i.e. it is the newer (or equal) source of truth.
+ * `persist` writes localStorage first and the cache right after, so within one
+ * save the cache timestamp is never earlier. A missing snapshot (never written,
+ * or lost to a storage-quota failure) always yields to the cache.
+ */
+function cacheIsAtLeastAsFresh(
+cacheSavedAt: string,
+snapshotSavedAt: string | null | undefined)
+: boolean {
+  if (!snapshotSavedAt) return true;
+  const cache = Date.parse(cacheSavedAt);
+  const snapshot = Date.parse(snapshotSavedAt);
+  if (!Number.isFinite(cache) || !Number.isFinite(snapshot)) return false;
+  return cache >= snapshot;
 }
 
 function toPersistedSlice(state: DomainState): PersistedSlice {
@@ -599,6 +623,17 @@ export function useWinmixEngine() {
         storageBackendRef.current,
         toPersistedSlice(snapshot)
       );
+      // IndexedDB mirror WITH pipeline output: makes the next reload instant
+      // and survives a localStorage quota failure. Fire-and-forget and
+      // best-effort — it must never block or break the primary save. Written
+      // after the localStorage snapshot so its timestamp is never earlier.
+      void savePipelineCache({
+        schemaVersion: SCHEMA_VERSION,
+        featureSchemaVersion: FEATURE_SCHEMA_VERSION,
+        pipelineContractVersion: PIPELINE_CONTRACT_VERSION,
+        savedAt: new Date().toISOString(),
+        ...toPersistedSlice(snapshot)
+      });
       if (result.error) {
         logDiagnostic('error', `Állapot mentési hiba: ${result.error}`);
         return;
@@ -866,10 +901,15 @@ export function useWinmixEngine() {
        * fit is never migrated across a dimensionality change.
        */
       let schemaRebuild = false;
+      /** When the localStorage snapshot was written; null when there was none. */
+      let snapshotSavedAt: string | null = null;
+      /** A quarantined snapshot is reported to the user; the cache must not paper over it. */
+      let snapshotCorrupted = false;
 
       try {
         const outcome = loadPersistedState(backend);
         if (outcome.state) {
+          snapshotSavedAt = outcome.state.savedAt ?? null;
           restored = { ...restored, ...toPersistedSlice(outcome.state as unknown as DomainState) };
           if (outcome.state.migrated) {
             logDiagnostic('info', 'v1 → v2 állapot migráció lefutott.');
@@ -886,6 +926,7 @@ export function useWinmixEngine() {
             );
           }
         } else if (outcome.corrupted) {
+          snapshotCorrupted = true;
           // Never look like a fresh install after a corrupted snapshot: the raw
           // value is quarantined and the user is told explicitly.
           logDiagnostic(
@@ -912,6 +953,34 @@ export function useWinmixEngine() {
           'error',
           `Állapot betöltési hiba, üres állapotból indulunk: ${errorMessage(e)}`
         );
+      }
+
+      /**
+       * IndexedDB pipeline cache. The localStorage snapshot strips pipeline
+       * output (forcing a full recompute) and, with tens of thousands of
+       * matches, may not fit the storage quota at all (forcing a full cloud
+       * re-download). When the cache is valid for the current schema/feature/
+       * pipeline versions and at least as fresh as that snapshot, it is the
+       * authoritative state: seasons come back with their predictions, so the
+       * recompute below is skipped and no network access is needed.
+       */
+      if (!snapshotCorrupted) {
+        try {
+          const cached = await loadPipelineCache();
+          if (cached && cacheIsAtLeastAsFresh(cached.savedAt, snapshotSavedAt)) {
+            restored = { ...restored, ...toPersistedSlice(cached as unknown as DomainState) };
+            // The cache only holds state written under the current feature shape.
+            schemaRebuild = false;
+            const cachedMatches = cached.seasons.reduce((sum, s) => sum + s.matches.length, 0);
+            logDiagnostic(
+              'info',
+              `Gyorsítótárból visszaállítva: ${cached.seasons.length} szezon, ${cachedMatches} mérkőzés, ` +
+              `újraszámítás nélkül (mentve: ${cached.savedAt}).`
+            );
+          }
+        } catch (e) {
+          logDiagnostic('warn', `A pipeline-gyorsítótár nem olvasható, kihagyva: ${errorMessage(e)}`);
+        }
       }
 
       if (cancelled) return;
@@ -1191,6 +1260,8 @@ export function useWinmixEngine() {
     flushPersist();
     persist(committed);
     clearCheckpoints();
+    // Queued after the (empty) mirror write inside persist(), so it wins.
+    void clearPipelineCache();
     setPipelineRuns({});
     setUploadResult(null);
     toast.success('Összes adat törölve.');
