@@ -188,29 +188,22 @@ export async function checkCloudFreshness(
 ): Promise<CloudFreshnessResult | null> {
   if (!isCloudTierConfigured()) return null;
   const cloudMetas = await fetchCloudSeasonList();
-  const cloudByKey = new Map<string, string | null>();
-  for (const m of cloudMetas) {
-    cloudByKey.set(`${m.league}:${m.sourceSeasonKey}`, m.contentHash);
-  }
-  const localKeys = new Set<string>();
-  const changedSeasons: string[] = [];
+  const localHashes = new Set<string>();
   for (const s of localSeasons) {
-    const key = `${s.league}:${s.contentHash ?? ''}`;
-    localKeys.add(key);
+    if (s.contentHash) localHashes.add(`${s.league}:${s.contentHash}`);
   }
   const newSeasons: string[] = [];
   for (const m of cloudMetas) {
-    const key = `${m.league}:${m.sourceSeasonKey}`;
-    if (!localKeys.has(`${m.league}:${m.contentHash ?? ''}`)) {
+    if (!m.contentHash || !localHashes.has(`${m.league}:${m.contentHash}`)) {
       newSeasons.push(m.name);
     }
   }
   return {
-    upToDate: newSeasons.length === 0 && changedSeasons.length === 0,
+    upToDate: newSeasons.length === 0,
     cloudSeasonCount: cloudMetas.length,
     localSeasonCount: localSeasons.length,
     newSeasons,
-    changedSeasons,
+    changedSeasons: [],
   };
 }
 const Receipt=z.object({success:z.literal(true),dataVersionId:z.string().min(1),revision:z.number().int().positive(),status:z.literal('draft'),isCurrent:z.literal(false),

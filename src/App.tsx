@@ -9,7 +9,7 @@ import React, {
 import { Toaster, toast } from 'sonner';
 
 import { fetchRemoteSeasonFiles } from './utils/remoteSeasons';
-import { fetchCloudSeasonList, fetchCloudSeasonsConcurrently, isCloudTierConfigured } from './utils/supabaseTier';
+import { checkCloudFreshness, fetchCloudSeasonList, fetchCloudSeasonsConcurrently, isCloudTierConfigured } from './utils/supabaseTier';
 
 import { CloudTierProvider } from './contexts/CloudTierContext';
 import { DialogProvider } from './contexts/DialogContext';
@@ -143,6 +143,7 @@ function StudioShell() {
     isComputing,
     isReady,
     hasData,
+    seasons,
   } = useWinmix();
 
   /**
@@ -163,6 +164,7 @@ function StudioShell() {
    */
   const loadingMatchesRef = useRef(false);
   const cloudBootstrapAttemptedRef = useRef(false);
+  const freshnessCheckedRef = useRef(false);
 
   /**
    * A deployed client starts with an empty browser store. When the cloud tier
@@ -200,6 +202,35 @@ function StudioShell() {
       }
     })();
   }, [hasData, importFiles, isReady]);
+
+  /**
+   * Cache freshness check — compares local season content hashes against the
+   * current sealed cloud version. Notification only; never overwrites local
+   * data. Network errors are silent so they never interrupt normal use.
+   */
+  useEffect(() => {
+    if (!isReady || !hasData || freshnessCheckedRef.current || !isCloudTierConfigured()) return;
+    freshnessCheckedRef.current = true;
+
+    void (async () => {
+      try {
+        const result = await checkCloudFreshness(
+          seasons.map((s) => ({ league: s.league, contentHash: s.contentHash }))
+        );
+        if (!result || result.upToDate) return;
+        const detail = result.newSeasons.length > 0
+          ? `${result.newSeasons.length} új szezon érhető el a felhőben.`
+          : 'A felhőadatok megváltoztak a legutóbbi betöltés óta.';
+        toast.info(`Friss felhőadat érhető el. ${detail}`, {
+          duration: 8000,
+          action: { label: 'Frissítés', onClick: () => void handleLoadMatches() },
+        });
+      } catch {
+        // Best-effort check; network failures are silent.
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasData, isReady, seasons]);
 
   /**
    * Remote match loader.
