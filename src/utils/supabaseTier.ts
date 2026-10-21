@@ -94,6 +94,65 @@ export async function fetchCloudSeasonData(meta:CloudSeasonMeta):Promise<CloudSe
   const header='date,home_team,away_team,ht_home_score,ht_away_score,home_score,away_score';
   return {meta,matches,csvText:[header,...matches.map(m=>[m.date,m.home_team,m.away_team,m.ht_home_score,m.ht_away_score,m.home_score,m.away_score].map(csvCell).join(','))].join('\r\n')};
 }
+/**
+ * Parallel season downloads. The browser holds at most this many `winmix_cloud_season`
+ * requests in flight: enough to hide the per-request round trip (~130 ms server time
+ * plus network latency each), few enough not to flood the connection or PostgREST.
+ */
+export const CLOUD_DOWNLOAD_CONCURRENCY = 8;
+const isTransientCloudError = (e: unknown) =>
+  e instanceof CloudHttpError && (e.status === 0 || e.status === 429 || e.status >= 500);
+export interface CloudDownloadOptions {
+  concurrency?: number;
+  /** Extra attempts per season for network errors, 429 and 5xx. Deterministic errors (409, 403…) are never retried. */
+  retries?: number;
+  onProgress?: (done: number, total: number) => void;
+}
+/**
+ * Downloads every season with bounded concurrency. The result keeps the order of
+ * `metas`. All-or-nothing: the first non-retryable (or exhausted) failure stops
+ * scheduling further requests and is re-thrown once in-flight requests settle, so a
+ * partial dataset is never returned.
+ */
+export async function fetchCloudSeasonsConcurrently(
+  metas: readonly CloudSeasonMeta[],
+  options: CloudDownloadOptions = {}
+): Promise<CloudSeasonDownload[]> {
+  const total = metas.length;
+  if (total === 0) return [];
+  const retries = Math.max(0, options.retries ?? 1);
+  const workers = Math.max(1, Math.min(options.concurrency ?? CLOUD_DOWNLOAD_CONCURRENCY, total));
+  const results = new Array<CloudSeasonDownload>(total);
+  let cursor = 0;
+  let done = 0;
+  let failed = false;
+  let failure: unknown;
+  const worker = async () => {
+    while (!failed) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= total) return;
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          results[index] = await fetchCloudSeasonData(metas[index]);
+          break;
+        } catch (e) {
+          if (attempt < retries && isTransientCloudError(e)) {
+            await new Promise((resolve) => setTimeout(resolve, 300 * 2 ** attempt));
+            continue;
+          }
+          if (!failed) { failed = true; failure = e; }
+          return;
+        }
+      }
+      done += 1;
+      options.onProgress?.(done, total);
+    }
+  };
+  await Promise.all(Array.from({ length: workers }, worker));
+  if (failed) throw failure;
+  return results;
+}
 const Rating=z.object({canonicalKey:z.string().min(1),displayName:z.string(),totalPlayed:z.number().int().nonnegative(),
   netHome:z.number().finite(),netAway:z.number().finite(),ppg:z.number().finite(),autoWeightIndex:z.number().min(0).max(10)});
 export type CloudTeamRating=z.infer<typeof Rating>;

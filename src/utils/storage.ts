@@ -135,6 +135,12 @@ export interface LoadedState {
    * pre-Phase-8 snapshots, which are treated exactly like a mismatch.
    */
   featureSchemaVersion: number | null;
+  /**
+   * When the snapshot was written. Lets the boot sequence decide whether the
+   * IndexedDB pipeline cache is at least as fresh as this snapshot. Absent
+   * (`undefined`/`null`) for migrated or pre-timestamp snapshots.
+   */
+  savedAt?: string | null;
 }
 
 interface LegacyState {
@@ -260,7 +266,8 @@ function hydrate(parsed: PersistedState & LegacyState): LoadedState {
     slips: Array.isArray(parsed.slips) ? parsed.slips : [],
     migrated: false,
     featureSchemaVersion:
-    typeof parsed.featureSchemaVersion === 'number' ? parsed.featureSchemaVersion : null
+    typeof parsed.featureSchemaVersion === 'number' ? parsed.featureSchemaVersion : null,
+    savedAt: typeof parsed.savedAt === 'string' ? parsed.savedAt : null
   };
 }
 
