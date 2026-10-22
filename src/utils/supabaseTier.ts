@@ -65,6 +65,10 @@ const Version = z.object({ id:z.string().min(1),versionKey:z.string(),status:z.e
   isCurrent:z.boolean(),revision:z.number().int().nonnegative(),fingerprint:z.string().nullable(),seasonCount:z.number().int().nonnegative(),matchCount:z.number().int().nonnegative() });
 export type CloudVersion = z.infer<typeof Version>;
 export async function fetchCloudVersions() { return z.array(Version).parse(await rpc('winmix_cloud_versions')); }
+/** The version the cloud currently serves (sealed + current), or null when there is none. */
+export async function fetchCurrentSealedVersion(): Promise<CloudVersion | null> {
+  return (await fetchCloudVersions()).find(v=>v.isCurrent && v.status==='sealed') ?? null;
+}
 async function resolveVersion(id?: string) {
   if (id) return id;
   const current = (await fetchCloudVersions()).find(v=>v.isCurrent && v.status==='sealed');

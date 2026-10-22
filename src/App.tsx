@@ -9,7 +9,8 @@ import React, {
 import { Toaster, toast } from 'sonner';
 
 import { fetchRemoteSeasonFiles } from './utils/remoteSeasons';
-import { fetchCloudSeasonList, fetchCloudSeasonsConcurrently, isCloudTierConfigured } from './utils/supabaseTier';
+import { fetchCloudSeasonList, fetchCloudSeasonsConcurrently, fetchCurrentSealedVersion, isCloudTierConfigured } from './utils/supabaseTier';
+import { checkCloudFreshness, writeCloudMarker } from './utils/cloudFreshness';
 
 import { CloudTierProvider } from './contexts/CloudTierContext';
 import { DialogProvider } from './contexts/DialogContext';
@@ -163,6 +164,7 @@ function StudioShell() {
    */
   const loadingMatchesRef = useRef(false);
   const cloudBootstrapAttemptedRef = useRef(false);
+  const freshnessCheckedRef = useRef(false);
 
   /**
    * A deployed client starts with an empty browser store. When the cloud tier
@@ -176,7 +178,9 @@ function StudioShell() {
     void (async () => {
       let toastId: string | number | undefined;
       try {
-        const seasons = await fetchCloudSeasonList();
+        const version = await fetchCurrentSealedVersion();
+        if (!version) return;
+        const seasons = await fetchCloudSeasonList(undefined, version.id);
         if (seasons.length === 0) return;
         toastId = toast.loading(`Felhő-adatok letöltése… 0 / ${seasons.length}`);
         // Bounded concurrency (not one request per season at once); the result
@@ -192,6 +196,8 @@ function StudioShell() {
           [download.csvText], download.meta.fileName, { type: 'text/csv' }
         ));
         await importFiles(files, 'auto');
+        // Remember which server version this browser now holds (see cloudFreshness.ts).
+        writeCloudMarker(version);
       } catch (error) {
         if (toastId !== undefined) toast.dismiss(toastId);
         toast.error(
@@ -200,6 +206,24 @@ function StudioShell() {
       }
     })();
   }, [hasData, importFiles, isReady]);
+
+  /**
+   * Once per session, when the data came from the browser cache (no bootstrap download),
+   * check with ONE small request whether the cloud has a newer version. Notification only:
+   * local data is never replaced automatically, and errors stay silent.
+   */
+  useEffect(() => {
+    if (!isReady || !hasData || freshnessCheckedRef.current || cloudBootstrapAttemptedRef.current) return;
+    freshnessCheckedRef.current = true;
+    void checkCloudFreshness().then((newer) => {
+      if (!newer) return;
+      toast('Új felhő-verzió érhető el.', {
+        description: 'A helyi adataid nem változtak. Frissítéshez nyisd meg a Felhő fület.',
+        duration: 20000,
+        action: { label: 'Megnyitás', onClick: () => setView('operations') },
+      });
+    });
+  }, [hasData, isReady]);
 
   /**
    * Remote match loader.
