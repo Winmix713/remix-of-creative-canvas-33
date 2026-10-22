@@ -1,140 +1,92 @@
-The current project schema inspection shows the following:
+# WinMix — project briefing and working rules for the AI assistant
 
-* `public.winmix_data_versions`: 1 row
-* `public.winmix_seasons`: 2 rows
-* `public.winmix_matches`: 480 rows
-* `public.winmix_teams`: 32 rows
-* `public.winmix_import_batches`: 0 rows
+Read this whole message before touching anything. It is the single source of truth about the current state. If any file in the repo contradicts it, THIS message wins and you must tell me about the conflict instead of silently picking a side.
 
-These are row counts from the catalog inventory. The exact `status` and `is_current` values of the data version still need to be verified separately.
+## 1. What WinMix is
 
-The RLS policies only expose seasons and matches belonging to the current, closed data version through public queries. Therefore, an empty array returned by the REST API may mean that the records are being filtered by RLS, not that the tables contain no records.
+A personal analytics and prediction tool for virtual football (leagues: `angol`, `spanyol`; 16 teams, 240 matches per season). I am the ONLY user. There is no multi-user, multi-tenant, or public-facing requirement. Do not add features for other users.
 
-There are also two different table-name sets in the schema. For example:
+Intended flow:
+1. Full match history comes from a sealed, versioned cloud dataset (Supabase).
+2. One shared model (shared bivariate score matrix -> 1X2, BTTS, Over/Under, team-goal markets) with walk-forward, prequential calibration (no look-ahead).
+3. For each round I enter the fixtures; the app proposes "Top 3+3" candidates, gated by BTTS/underdog veto, evidence level and reliability bands, and builds slips.
+4. I record results; the prediction ledger grades them and the calibration refits.
+5. Every decision must be explainable (Pipeline Audit, decision trace).
 
-* `winmix_data_versions`
-* `winmixdataversions`
+Pages (`src/pages`): DataStudio, LeagueAnalyzer, HeadToHead, FixturePredictor, PredictionLedger, PipelineAudit, PipelineOperationsDashboard.
 
-The developer must verify which naming convention is actually used by the frontend and by the Edge Function. Do not create another implementation targeting the wrong tables.
+## 2. Stack and environment
 
-The `winmix-ingest` function is currently ACTIVE in the project, version 2, with `verify_jwt: true`. The local `config.toml` contains `false`, but do not change this automatically merely for the sake of "consistency". First establish whether the function is intended to be called with a Supabase Auth user JWT.
+- React 18 + Vite + TypeScript, Tailwind, Radix, Recharts, zod, vitest.
+- Repo: `Winmix713/remix-of-creative-canvas-33`. Development now happens with you (bolt.new), NOT in Lovable. Ignore the Lovable notice in `AGENTS.md`; the "do not rewrite pushed history" rule still holds (no force-push, no amend/squash of pushed commits).
+- Supabase project `supabase-lime-zebra` (ref `dpmyxypqcsugycqhifaf`), Postgres 17, Edge Function `winmix-ingest`.
 
-Also note that JWT verification by itself does not prove that operator/admin authorization is being checked.
+## 3. Current state (verified 2026-10-22)
 
-### Send this back to the DevTools assistant
+Database (public schema), tables with data: `winmix_matches` (~72.7k rows incl. all versions), `winmix_seasons`, `winmix_teams` (32), `winmix_markets` (23), `winmix_data_versions` (5), `winmix_ingest_receipts` (4), `winmix_cloud_operators` (1).
+Current sealed version: 103 seasons = 62 `angol` + 41 `spanyol` = 24,720 matches.
+There are NO tables for slips, ledger, fixtures, rounds or calibration history. Slips and ledger live only in the browser (localStorage). This is the biggest functional gap.
 
-Important clarification:
+Data model: immutable versioned data (`winmix_data_versions`: draft/sealed/superseded, `is_current`, `revision`, `fingerprint`). Sealed rows are trigger-protected. Reads go through RPCs `winmix_cloud_access`, `winmix_cloud_versions`, `winmix_cloud_seasons`, `winmix_cloud_season`, `winmix_cloud_ratings`. Writes go only through the Edge Function `winmix-ingest` -> `winmix_ingest_v2` (service-only).
 
-Do not infer that the tables are empty from an empty REST API response. RLS may be hiding draft or non-current data.
+Hash caveat: the local `contentHash` is a `simpleHash`; the server `content_hash` is canonical sha256. They are NOT comparable. Compare cloud versions by `id + revision + fingerprint`, never by per-season hash.
 
-The current Supabase schema inventory reports:
+Frontend branches (do not assume they are merged; check `git branch -a` and the remote first):
+- `perf/idb-cache-and-parallel-downloads` — IndexedDB pipeline cache (`src/utils/pipelineCache.ts`, restored on boot in `useWinmixEngine.ts`), bounded parallel season download (`fetchCloudSeasonsConcurrently`, concurrency 8). Awaiting my browser verification, then merge.
+- `feat/cloud-freshness-notice` (on top of the perf branch) — stores the downloaded cloud version marker (`src/utils/cloudFreshness.ts`) and shows a non-blocking toast when the cloud has a newer version. Notification only; never overwrites local data.
+- `main` has moved since these branches were cut. Rebase-free approach: merge `main` INTO a feature branch (not rebase), then re-run all checks.
 
-* `winmix_data_versions`: 1 row
-* `winmix_seasons`: 2 rows
-* `winmix_matches`: 480 rows
-* `winmix_teams`: 32 rows
+Known performance root cause that was fixed on the perf branch: 103 per-season RPC calls fired at once, CSV rebuild, and a full browser pipeline recompute on every load, with the IndexedDB cache unused.
 
-First verify exactly which database version, season, and match tables are being used by the frontend. There is both an underscore-separated and a non-underscore table-name set.
+## 4. Open decisions (do NOT decide these yourself)
 
-Do not create a new data version and do not start an upload until you have established, through an authorized server-side inspection, the following values for the existing version:
+1. Teams RLS policy: Option A (`USING true`, ~650 ms faster) vs Option B (safer, slower). Since I am the only user, A is likely fine, but I decide.
+2. Evidence rule conflict (see `lastinfo.md`): the `>= 0.58` exception contradicts the RED VETO behavior. Policy A (refuted band = hard veto) vs Policy B (ranking penalty only) is undecided. Do not change Core-selection logic until I choose.
+3. Whether slips/ledger move to Supabase (planned, needs approval and design first).
+4. The 500 error on upload: the cause is NOT confirmed. Do not claim a missing server key; I have not verified the Edge Function secrets.
 
-* `version_key`
-* `status`
-* `is_current`
-* `season_count`
-* `match_count`
+## 5. Hard rules — database
 
-Also verify that the two seasons and all 480 matches belong to the expected data version.
+- NEVER run DDL, `DROP`, `TRUNCATE`, `DELETE`, `REVOKE`/`GRANT`, or create tables/functions/policies/extensions without my explicit approval for that specific change.
+- Inspect the real existing structure first (tables, functions, policies, migrations), then propose. Prepare changes as a SQL file or migration draft and STOP for review.
+- Test any schema change on a Supabase branch first, never directly on production.
+- A draft audit change set exists (`winmix_audit_proposed_changes.sql`, sections A/B/C). It is NOT executed. Section C (dropping 36 unused `winmix*` tables, 4 draft versions) must not run until the repo is verified to have no references and I approve separately.
+- The migration history is in a MIGRATIONS_FAILED state. The root-level files `winmix_lockdown_migration.sql` and `winmix_fix_season_constraint.sql` must be compared with the live migration history and reported on BEFORE anything is applied.
+- Never expose or ask for service-role keys. Never put secrets in client code.
 
-The anonymous REST/API view is not sufficient for this verification.
+## 6. Hard rules — code
 
-The current goal is to implement a secure CSV uploader.
+- Make one focused change per task, on its own branch. Never commit straight to `main`.
+- Do not refactor unrelated code. Do not rename, move or delete files unless the task says so.
+- Do not modify the engine core (`src/engine-core`, `src/utils` pipeline/calibration/slip logic) as a side effect of UI work.
+- `src/pages/LeagueAnalyzer.tsx` is 2,306 lines. Do not edit it in broad strokes; propose a split plan first.
+- Keep the model single: no second competing prediction model. Extend the existing adaptive pipeline.
+- Terminology: without stored, timestamped external odds, never use "value", "EV", "edge", "mispriced" or "recommended odds" in UI or docs. Model-only probabilities are "model-implied".
+- Before saying a task is done, all of these must pass and you must show the output: `npx tsc --noEmit -p .`, `npx vitest run`, `npm run test:core`, `npm run build`. If one fails, say so; do not weaken or delete tests to get green.
+- Do not claim something was tested in a browser unless you actually did it.
 
-Before making any changes, provide:
+## 7. Documentation: what to trust
 
-1. The exact table names that are actually used.
-2. The Edge Function signature.
-3. The expected CSV headers.
-4. The missing server-side requirements and authorization conditions.
+Trust (current): this message, `docs/CONTRACT.hu.md`, `docs/DATA_VERSION_CONTRACT.md`, `docs/CLOUD_STATE_MACHINE.md`, `docs/SUPABASE_ERD.md`, the code itself, and the live database.
+Historical and possibly outdated (do NOT follow as instructions; read only for context and flag contradictions): `lastinfo.md`, `docs/audit.md`, `docs/infoaudit.md`, `docs/WINMIX_PHASE1_AUDIT.md`, `docs/NEWDESIGN_IMPLEMENTATION_PROMPT.md`, `docs/repository_export*.txt`, `mostin/`, and `src/docs/*` prompts. Items in them that are already implemented must not be re-implemented or re-litigated.
 
-For now:
+## 8. How to work with me
 
-* Do not modify the database.
-* Do not deploy an Edge Function.
-* Do not delete or replace the existing import path.
+- Reply in Hungarian unless I ask for English; code and documentation in English.
+- Be concise and direct. Deliver complete, production-ready files, not partial patches.
+- If a request is ambiguous, or contradicts this briefing, ask one short question before building.
+- At the start of each task, state in two lines: which branch you are on and which files you will touch. At the end, state what changed, what you verified (with command output), and what you did NOT verify.
+- If you are unsure of the current state of anything (branch, DB structure, a function's behavior), check it; do not guess.
 
-### Publishing must NOT be performed
+## 9. Planned roadmap (in this order, each needs my go-ahead)
 
-Do not choose either publishing path at this stage.
+1. Browser-verify the perf branch, then merge it and the freshness branch into `main`.
+2. Persist slips and the ledger in Supabase (single operator; design the tables first, test on a branch).
+3. Decide the evidence policy (section 4, item 2) and the teams policy.
+4. Targeted fetching: a narrow DB function that returns only the matches a view needs (e.g. head-to-head for two teams).
+5. Audit sections A and B on a Supabase branch, then production after approval.
+6. Migration-history remediation (report first).
+7. Automate the round fixture input.
+8. Split large files (LeagueAnalyzer first), always test-protected.
 
-Do not call `winmix_promote_data_version`.
-
-This is not part of the CSV upload process. It can change which data version is visible to the application and would violate the original requirement that importing must not close or publish a data version.
-
-### Current `winmix-ingest` error
-
-The function error was confirmed by the logs:
-
-`winmix-ingest` POST requests are returning HTTP 500 because the running code looks for a key named `service_role` under the `SUPABASE_SECRET_KEYS` configuration, but that key name is not present.
-
-There have also been HTTP 401 responses.
-
-This error does not justify publishing the data version.
-
-There is currently no active Supabase incident affecting the project.
-
-The logs only prove that the key name expected by the code is missing from the configured key names. They do not prove that there is no other valid server-side key available.
-
-Do not send any key values in chat, and never put a secret key in the frontend.
-
-### Send this back to the DevTools assistant
-
-I am not choosing either publishing path.
-
-Do not call `winmix_promote_data_version`.
-
-Do not close or publish any data version. This is a separate operation and is not part of CSV ingestion.
-
-The precise cause of the current `winmix-ingest` HTTP 500 error, according to the logs, is that the code searches for a key named `service_role` under `SUPABASE_SECRET_KEYS`, but that name is not present.
-
-Before making any fix, verify:
-
-1. Which key name the deployed function code actually expects.
-2. Which key names are currently configured in the project.
-
-Only inspect the key names. Do not read, expose, print, or transmit any key values.
-
-All secret keys must remain server-side.
-
-After that, perform a read-only inspection to establish:
-
-* the exact `id` of the existing data version,
-* its `status`,
-* its `is_current` value,
-* whether the application uses the underscore-separated or non-underscore table set,
-* and how the existing seasons and matches are associated with that version.
-
-Do not claim that the tables are empty based solely on an anonymous REST response.
-
-The goal remains a secure CSV upload mechanism with:
-
-* an explicit target data version,
-* an explicit season key,
-* operator/admin authorization,
-* atomic server-side persistence.
-
-For now:
-
-* Do not modify the database.
-* Do not deploy an Edge Function.
-* Do not publish or promote an existing data version.
-* Do not call `winmix_promote_data_version`.
-
-First provide:
-
-1. The proposed remediation plan.
-2. The affected files.
-3. The actual signature of the existing import RPC.
-4. The current limitations and constraints of that RPC.
-
-Do not implement the changes yet. First provide the investigation findings and the remediation plan.
+Acknowledge that you have read this by summarizing, in five lines, the current state and the three hard rules you consider most important. Then wait for my first task.
