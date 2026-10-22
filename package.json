@@ -49,6 +49,7 @@
     "cmdk": "^1.1.1",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^14.0.0",
+    "git": "^0.1.5",
     "input-otp": "^1.5.0",
     "lucide-react": "^1.53.0",
     "react": "18.3.1",
