@@ -65,6 +65,10 @@ const Version = z.object({ id:z.string().min(1),versionKey:z.string(),status:z.e
   isCurrent:z.boolean(),revision:z.number().int().nonnegative(),fingerprint:z.string().nullable(),seasonCount:z.number().int().nonnegative(),matchCount:z.number().int().nonnegative() });
 export type CloudVersion = z.infer<typeof Version>;
 export async function fetchCloudVersions() { return z.array(Version).parse(await rpc('winmix_cloud_versions')); }
+/** The version the cloud currently serves (sealed + current), or null when there is none. */
+export async function fetchCurrentSealedVersion(): Promise<CloudVersion | null> {
+  return (await fetchCloudVersions()).find(v=>v.isCurrent && v.status==='sealed') ?? null;
+}
 async function resolveVersion(id?: string) {
   if (id) return id;
   const current = (await fetchCloudVersions()).find(v=>v.isCurrent && v.status==='sealed');
@@ -168,44 +172,6 @@ export async function fetchCloudTeamRatings(league:League):Promise<CloudTeamRati
   const version=await resolveVersion(); return version?(await fetchCloudRatingSnapshot(league,version)).ratings:[];
 }
 
-export interface CloudFreshnessResult {
-  upToDate: boolean;
-  cloudSeasonCount: number;
-  localSeasonCount: number;
-  newSeasons: string[];
-  changedSeasons: string[];
-}
-
-/**
- * Compares local season content hashes against the current sealed cloud
- * version's season list. Returns whether the local data is up-to-date and
- * which seasons are new or changed on the cloud side. This is a read-only
- * check — it never modifies local data. The caller decides what to do with
- * the result.
- */
-export async function checkCloudFreshness(
-  localSeasons: ReadonlyArray<{ league: string; contentHash: string | null }>
-): Promise<CloudFreshnessResult | null> {
-  if (!isCloudTierConfigured()) return null;
-  const cloudMetas = await fetchCloudSeasonList();
-  const localHashes = new Set<string>();
-  for (const s of localSeasons) {
-    if (s.contentHash) localHashes.add(`${s.league}:${s.contentHash}`);
-  }
-  const newSeasons: string[] = [];
-  for (const m of cloudMetas) {
-    if (!m.contentHash || !localHashes.has(`${m.league}:${m.contentHash}`)) {
-      newSeasons.push(m.name);
-    }
-  }
-  return {
-    upToDate: newSeasons.length === 0,
-    cloudSeasonCount: cloudMetas.length,
-    localSeasonCount: localSeasons.length,
-    newSeasons,
-    changedSeasons: [],
-  };
-}
 const Receipt=z.object({success:z.literal(true),dataVersionId:z.string().min(1),revision:z.number().int().positive(),status:z.literal('draft'),isCurrent:z.literal(false),
   seasons:z.number().int().positive(),teams:z.number().int().positive(),matches:z.number().int().positive(),rejected:z.literal(0),repaired:z.literal(0),
   errors:z.array(z.string()).length(0),manifestErrors:z.array(z.string()).length(0),replayed:z.boolean(),requestId:z.string().min(1)});

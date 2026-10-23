@@ -1,6 +1,10 @@
 -- =====================================================================
 -- WinMix — Slips & Ledger persistence (DRAFT, NOT APPLIED)
 --
+-- REVISION 2 (review fixes): winmix_cloud_is_operator takes a uuid argument in the live DB,
+--   so every policy now calls it with (select auth.uid()); operator_id defaults to auth.uid();
+--   data_version_id is ON DELETE RESTRICT so a slip never loses its data-version trace.
+--
 -- STATUS: DRAFT. Do NOT execute. Awaiting operator review and approval.
 -- Test on a Supabase branch first, never directly on production.
 --
@@ -37,8 +41,8 @@
 
 CREATE TABLE IF NOT EXISTS public.winmix_slips (
   id              text        PRIMARY KEY,
-  operator_id     uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  data_version_id uuid        REFERENCES public.winmix_data_versions(id) ON DELETE SET NULL,
+  operator_id     uuid        NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  data_version_id uuid        REFERENCES public.winmix_data_versions(id) ON DELETE RESTRICT,
   round_name      text        NOT NULL,
   combined_prob   double precision NOT NULL DEFAULT 0,
   core_strategy   text,
@@ -134,52 +138,52 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.winmix_slip_lines TO authenticate
 -- Policy: operator can manage their own slips
 CREATE POLICY "select_own_slips" ON public.winmix_slips
   FOR SELECT TO authenticated
-  USING (public.winmix_cloud_is_operator());
+  USING (public.winmix_cloud_is_operator((select auth.uid())));
 
 CREATE POLICY "insert_own_slips" ON public.winmix_slips
   FOR INSERT TO authenticated
-  WITH CHECK (public.winmix_cloud_is_operator());
+  WITH CHECK (public.winmix_cloud_is_operator((select auth.uid())));
 
 CREATE POLICY "update_own_slips" ON public.winmix_slips
   FOR UPDATE TO authenticated
-  USING (public.winmix_cloud_is_operator())
-  WITH CHECK (public.winmix_cloud_is_operator());
+  USING (public.winmix_cloud_is_operator((select auth.uid())))
+  WITH CHECK (public.winmix_cloud_is_operator((select auth.uid())));
 
 CREATE POLICY "delete_own_slips" ON public.winmix_slips
   FOR DELETE TO authenticated
-  USING (public.winmix_cloud_is_operator());
+  USING (public.winmix_cloud_is_operator((select auth.uid())));
 
 -- Policy: operator can manage slip lines (access via parent slip)
 CREATE POLICY "select_own_slip_lines" ON public.winmix_slip_lines
   FOR SELECT TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.winmix_slips s
-    WHERE s.id = slip_id AND public.winmix_cloud_is_operator()
+    WHERE s.id = slip_id AND public.winmix_cloud_is_operator((select auth.uid()))
   ));
 
 CREATE POLICY "insert_own_slip_lines" ON public.winmix_slip_lines
   FOR INSERT TO authenticated
   WITH CHECK (EXISTS (
     SELECT 1 FROM public.winmix_slips s
-    WHERE s.id = slip_id AND public.winmix_cloud_is_operator()
+    WHERE s.id = slip_id AND public.winmix_cloud_is_operator((select auth.uid()))
   ));
 
 CREATE POLICY "update_own_slip_lines" ON public.winmix_slip_lines
   FOR UPDATE TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.winmix_slips s
-    WHERE s.id = slip_id AND public.winmix_cloud_is_operator()
+    WHERE s.id = slip_id AND public.winmix_cloud_is_operator((select auth.uid()))
   ))
   WITH CHECK (EXISTS (
     SELECT 1 FROM public.winmix_slips s
-    WHERE s.id = slip_id AND public.winmix_cloud_is_operator()
+    WHERE s.id = slip_id AND public.winmix_cloud_is_operator((select auth.uid()))
   ));
 
 CREATE POLICY "delete_own_slip_lines" ON public.winmix_slip_lines
   FOR DELETE TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.winmix_slips s
-    WHERE s.id = slip_id AND public.winmix_cloud_is_operator()
+    WHERE s.id = slip_id AND public.winmix_cloud_is_operator((select auth.uid()))
   ));
 
 -- ---------------------------------------------------------------------
