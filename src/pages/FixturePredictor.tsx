@@ -45,6 +45,7 @@ import { ProductionGatesPanel } from '../components/winmix/ProductionGatesPanel'
 import { ZeroCoreNotice } from '../components/winmix/ZeroCoreNotice';
 import { MobileSlipBar } from '../components/winmix/MobileSlipBar';
 import { buildCoreTrace } from '../utils/coreTrace';
+import { ImportPairsBox } from '../components/winmix/ImportPairsBox';
 
 const INTRO =
 'Állítsd össze a hét 8 angol és 8 spanyol mérkőzését, majd futtasd az ' +
@@ -352,15 +353,21 @@ export function FixturePredictor() {
 
           <div className="predictor-builder-grid grid grid-cols-1 gap-4 lg:grid-cols-2">
             {LEAGUES.map((league) =>
-            <RoundBuilder
-              key={league}
-              league={league}
-              fixtures={fixturesOf(round, league)}
-              pool={pools[league]}
-              used={usedTeamKeys(round, league)}
-              patternCounts={patternCounts}
-              onSelect={setFixtureTeam}
-              onClear={clearFixture} />
+            <div key={league} className="flex flex-col gap-3">
+              <ImportPairsBox
+                league={league}
+                pool={pools[league]}
+                round={round}
+                setFixtureTeam={setFixtureTeam} />
+              <RoundBuilder
+                league={league}
+                fixtures={fixturesOf(round, league)}
+                pool={pools[league]}
+                used={usedTeamKeys(round, league)}
+                patternCounts={patternCounts}
+                onSelect={setFixtureTeam}
+                onClear={clearFixture} />
+            </div>
 
             )}
           </div>
