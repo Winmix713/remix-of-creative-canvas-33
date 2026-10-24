@@ -534,6 +534,17 @@ onFileStart: (file: File, index: number) => void)
  * Hook
  * ------------------------------------------------------------------ */
 
+/** Result of an import run; `ok` is true only when at least one season was recorded. */
+export interface ImportOutcome {
+  ok: boolean;
+  added: number;
+}
+
+export interface ImportOptions {
+  /** Do not mirror the imported seasons back to the cloud (data that came FROM the cloud). */
+  skipCloudSync?: boolean;
+}
+
 export function useWinmixEngine() {
   const dialogs = useDialogs();
 
@@ -1045,9 +1056,14 @@ export function useWinmixEngine() {
   /* ----------------------------- Ingestion ----------------------------- */
 
   const importFiles = useCallback(
-    async (fileList: FileList | File[], mode: LeagueMode) => {
+    async (
+      fileList: FileList | File[],
+      mode: LeagueMode,
+      options?: ImportOptions
+    ): Promise<ImportOutcome> => {
       const files = Array.from(fileList);
-      if (files.length === 0) return;
+      const outcome: ImportOutcome = { ok: false, added: 0 };
+      if (files.length === 0) return outcome;
 
       await withPipelineLock(async (runId) => {
         setUploadResult(null);
@@ -1128,10 +1144,14 @@ export function useWinmixEngine() {
           }
 
           if (ingest.added > 0) {
+            outcome.ok = true;
+            outcome.added = ingest.added;
             toast.success(`${ingest.added} új bajnokság rögzítve!`);
             // Auto-sync to Supabase if the cloud tier is configured — silent,
-            // non-blocking, failure only logs a diagnostic entry.
-            if (isCloudTierConfigured()) {
+            // non-blocking, failure only logs a diagnostic entry. Skipped for data that
+            // was just downloaded FROM the cloud (uploading it back would only create a
+            // redundant draft version).
+            if (isCloudTierConfigured() && !options?.skipCloudSync) {
               void (async () => {
                 try {
                   const result = await syncSeasonsToCloud(
@@ -1168,6 +1188,7 @@ export function useWinmixEngine() {
           );
         }
       });
+      return outcome;
     },
     [
     commit,

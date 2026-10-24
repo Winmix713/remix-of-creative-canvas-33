@@ -169,7 +169,7 @@ export function PipelineOperationsDashboard() {
               const files = downloads.map(
                 (d) => new File([d.csvText], d.meta.fileName, { type: 'text/csv' })
               );
-              await importFiles(files, 'auto');
+              await importFiles(files, 'auto', { skipCloudSync: true });
             }}
           />
         </div> :

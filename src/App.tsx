@@ -9,8 +9,9 @@ import React, {
 import { Toaster, toast } from 'sonner';
 
 import { fetchRemoteSeasonFiles } from './utils/remoteSeasons';
-import { fetchCloudSeasonList, fetchCloudSeasonsConcurrently, fetchCurrentSealedVersion, isCloudTierConfigured } from './utils/supabaseTier';
-import { checkCloudFreshness, writeCloudMarker } from './utils/cloudFreshness';
+import { isCloudTierConfigured } from './utils/supabaseTier';
+import { bootstrapFromCloud } from './utils/cloudBootstrap';
+import { checkCloudFreshness } from './utils/cloudFreshness';
 
 import { CloudTierProvider } from './contexts/CloudTierContext';
 import { DialogProvider } from './contexts/DialogContext';
@@ -20,6 +21,7 @@ import { ImportPreviewModal } from './components/winmix/ImportPreviewModal';
 import { NavRail } from './components/winmix/NavRail';
 import { StatusBar } from './components/winmix/StatusBar';
 import { TopBar } from './components/winmix/TopBar';
+import { ViewErrorBoundary } from './components/winmix/ViewErrorBoundary';
 
 import { useScreenInit } from './useScreenInit.js';
 
@@ -162,6 +164,7 @@ function StudioShell() {
    *
    * The ref closes that race because ref.current changes synchronously.
    */
+  const mainRef = useRef<HTMLElement>(null);
   const loadingMatchesRef = useRef(false);
   const cloudBootstrapAttemptedRef = useRef(false);
   const freshnessCheckedRef = useRef(false);
@@ -170,7 +173,20 @@ function StudioShell() {
    * A deployed client starts with an empty browser store. When the cloud tier
    * is configured, hydrate that empty store from the authoritative Supabase
    * seasons automatically instead of making the operator discover a button.
+   *
+   * No unmount guard on purpose: the shell lives for the whole session, and `hasData`
+   * flipping to true mid-import must not cancel the freshness-marker write.
+   * A failure is reported with an explicit retry action (never an automatic loop).
    */
+  const [bootstrapNonce, setBootstrapNonce] = useState(0);
+  const retryAction = {
+    label: 'Újrapróbálás',
+    onClick: () => {
+      cloudBootstrapAttemptedRef.current = false;
+      setBootstrapNonce((n) => n + 1);
+    },
+  };
+
   useEffect(() => {
     if (!isReady || hasData || cloudBootstrapAttemptedRef.current || !isCloudTierConfigured()) return;
     cloudBootstrapAttemptedRef.current = true;
@@ -178,34 +194,31 @@ function StudioShell() {
     void (async () => {
       let toastId: string | number | undefined;
       try {
-        const version = await fetchCurrentSealedVersion();
-        if (!version) return;
-        const seasons = await fetchCloudSeasonList(undefined, version.id);
-        if (seasons.length === 0) return;
-        toastId = toast.loading(`Felhő-adatok letöltése… 0 / ${seasons.length}`);
-        // Bounded concurrency (not one request per season at once); the result
-        // keeps the season order and is all-or-nothing, like the old Promise.all.
-        const downloads = await fetchCloudSeasonsConcurrently(seasons, {
+        const status = await bootstrapFromCloud({
+          importFiles,
+          onStart: (total) => {
+            toastId = toast.loading(`Felhő-adatok letöltése… 0 / ${total}`);
+          },
           onProgress: (done, total) => {
             toast.loading(`Felhő-adatok letöltése… ${done} / ${total}`, { id: toastId });
-          }
+          },
+          onDownloaded: () => {
+            if (toastId !== undefined) toast.dismiss(toastId);
+            toastId = undefined;
+          },
         });
-        toast.dismiss(toastId);
-        toastId = undefined;
-        const files = downloads.map((download) => new File(
-          [download.csvText], download.meta.fileName, { type: 'text/csv' }
-        ));
-        await importFiles(files, 'auto');
-        // Remember which server version this browser now holds (see cloudFreshness.ts).
-        writeCloudMarker(version);
+        if (status === 'import-failed') {
+          toast.error('A letöltött felhő-adatok importja nem sikerült.', { action: retryAction });
+        }
       } catch (error) {
         if (toastId !== undefined) toast.dismiss(toastId);
         toast.error(
-          `A kezdeti felhő-adatbetöltés sikertelen: ${error instanceof Error ? error.message : 'ismeretlen hiba'}`
+          `A kezdeti felhő-adatbetöltés sikertelen: ${error instanceof Error ? error.message : 'ismeretlen hiba'}`,
+          { action: retryAction }
         );
       }
     })();
-  }, [hasData, importFiles, isReady]);
+  }, [hasData, importFiles, isReady, bootstrapNonce]);
 
   /**
    * Once per session, when the data came from the browser cache (no bootstrap download),
@@ -226,6 +239,19 @@ function StudioShell() {
       });
     });
   }, [hasData, isReady]);
+
+  /**
+   * Move keyboard / screen-reader focus to the content when the user switches view.
+   * Skipped on the first render so the page does not steal focus on load.
+   */
+  const firstViewRenderRef = useRef(true);
+  useEffect(() => {
+    if (firstViewRenderRef.current) {
+      firstViewRenderRef.current = false;
+      return;
+    }
+    mainRef.current?.focus({ preventScroll: true });
+  }, [view]);
 
   /**
    * Remote match loader.
@@ -376,6 +402,7 @@ function StudioShell() {
 
         <main
           id="main-content"
+          ref={mainRef}
           tabIndex={-1}
           className="
             flex-1
@@ -397,6 +424,7 @@ function StudioShell() {
               md:py-6
             "
           >
+            <ViewErrorBoundary resetKey={view}>
             <Suspense fallback={<PageLoadingSpinner />}>
               {view === 'dashboard' && <DataStudio />}
 
@@ -414,6 +442,7 @@ function StudioShell() {
 
               {view === 'ledger' && <PredictionLedger />}
             </Suspense>
+            </ViewErrorBoundary>
           </div>
         </main>
       </div>
