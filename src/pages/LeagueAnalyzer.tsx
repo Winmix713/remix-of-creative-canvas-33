@@ -44,6 +44,10 @@ import {
 
 import { summarizeMatchup, type MatchupSummary } from '../utils/h2h';
 import { cn } from '../lib/utils';
+import { TeamSelect, type TeamPoolRow } from '../components/winmix/league/TeamSelect';
+import { PositionChart, type PositionHistoryTeam } from '../components/winmix/league/PositionChart';
+import { CompareRow } from '../components/winmix/league/CompareRow';
+import { getComparison } from '../utils/compareValues';
 import { ResultMatrixSection } from '../components/winmix/league/ResultMatrixSection';
 
 const INTRO =
@@ -65,22 +69,7 @@ function formLabel(r: string): string {
  * Shared types                                                               *
  * -------------------------------------------------------------------------- */
 
-type TeamPoolRow = {
-  key: string;
-  display: string;
-  played: number;
-};
-
 type StandingRows = ReturnType<typeof buildLeagueAnalyzerData>['standings'];
-
-type PositionHistoryTeam = {
-  key: string;
-  displayName: string;
-  history: {
-    round: number;
-    position: number;
-  }[];
-};
 
 type PositionHistoryPair = {
   a: PositionHistoryTeam | null;
@@ -1182,46 +1171,21 @@ function TeamComparisonSection({
   const aForm = getForm(teamAKey);
   const bForm = getForm(teamBKey);
 
-  const compareRow = (
-    label: string,
-    aVal: string,
-    bVal: string,
-    aBetter: boolean | null = null,
-  ) => (
-    <tr key={label}>
-      <TdLabel className="pl-4">
-        {label}
-      </TdLabel>
+  const perMatch = (
+    standing: { row: { played: number } } | null,
+    total: number | undefined,
+  ): number | null =>
+    standing && standing.row.played > 0 && total !== undefined
+      ? total / standing.row.played
+      : null;
 
-      <Td
-        align="center"
-        className={cn(
-          'font-semibold',
-          aBetter === true
-            ? 'text-positive'
-            : aBetter === false
-              ? 'text-negative'
-              : 'text-foreground',
-        )}
-      >
-        {aVal}
-      </Td>
+  const aGf = perMatch(aStanding, aStanding?.row.gf);
+  const bGf = perMatch(bStanding, bStanding?.row.gf);
+  const aGa = perMatch(aStanding, aStanding?.row.ga);
+  const bGa = perMatch(bStanding, bStanding?.row.ga);
 
-      <Td
-        align="center"
-        className={cn(
-          'font-semibold',
-          aBetter === false
-            ? 'text-positive'
-            : aBetter === true
-              ? 'text-negative'
-              : 'text-foreground',
-        )}
-      >
-        {bVal}
-      </Td>
-    </tr>
-  );
+  const fmt = (v: number | null, decimals: number, suffix = ''): string =>
+    v === null ? '—' : `${v.toFixed(decimals)}${suffix}`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -1285,111 +1249,53 @@ function TeamComparisonSection({
                 </thead>
 
                 <tbody>
-                  {compareRow(
-                    'Tabella helyezés',
-                    aStanding ? `${aStanding.rank}.` : '—',
-                    bStanding ? `${bStanding.rank}.` : '—',
-                    aStanding && bStanding
-                      ? aStanding.rank < bStanding.rank
-                      : null,
-                  )}
-
-                  {compareRow(
-                    'Pontszám',
-                    aStanding
-                      ? String(aStanding.row.points)
-                      : '—',
-                    bStanding
-                      ? String(bStanding.row.points)
-                      : '—',
-                    aStanding && bStanding
-                      ? aStanding.row.points >
-                        bStanding.row.points
-                      : null,
-                  )}
-
-                  {compareRow(
-                    'Győzelmek',
-                    aStanding
-                      ? String(aStanding.row.wins)
-                      : '—',
-                    bStanding
-                      ? String(bStanding.row.wins)
-                      : '—',
-                    aStanding && bStanding
-                      ? aStanding.row.wins >
-                        bStanding.row.wins
-                      : null,
-                  )}
-
-                  {compareRow(
-                    'Lőtt gól / meccs',
-                    aStanding && aStanding.row.played > 0
-                      ? (
-                          aStanding.row.gf /
-                          aStanding.row.played
-                        ).toFixed(2)
-                      : '—',
-                    bStanding && bStanding.row.played > 0
-                      ? (
-                          bStanding.row.gf /
-                          bStanding.row.played
-                        ).toFixed(2)
-                      : '—',
-                  )}
-
-                  {compareRow(
-                    'Kapott gól / meccs',
-                    aStanding && aStanding.row.played > 0
-                      ? (
-                          aStanding.row.ga /
-                          aStanding.row.played
-                        ).toFixed(2)
-                      : '—',
-                    bStanding && bStanding.row.played > 0
-                      ? (
-                          bStanding.row.ga /
-                          bStanding.row.played
-                        ).toFixed(2)
-                      : '—',
-                  )}
-
-                  {compareRow(
-                    'Over 2.5 %',
-                    aOU
-                      ? `${aOU.over25Pct.toFixed(1)}%`
-                      : '—',
-                    bOU
-                      ? `${bOU.over25Pct.toFixed(1)}%`
-                      : '—',
-                    aOU && bOU
-                      ? aOU.over25Pct > bOU.over25Pct
-                      : null,
-                  )}
-
-                  {compareRow(
-                    'BTTS %',
-                    aOU
-                      ? `${aOU.bttsPct.toFixed(1)}%`
-                      : '—',
-                    bOU
-                      ? `${bOU.bttsPct.toFixed(1)}%`
-                      : '—',
-                  )}
-
-                  {compareRow(
-                    'Forma pont (utolsó 5)',
-                    aForm
-                      ? String(aForm.formPoints)
-                      : '—',
-                    bForm
-                      ? String(bForm.formPoints)
-                      : '—',
-                    aForm && bForm
-                      ? aForm.formPoints >
-                        bForm.formPoints
-                      : null,
-                  )}
+                  <CompareRow
+                    label="Tabella helyezés"
+                    aVal={aStanding ? `${aStanding.rank}.` : '—'}
+                    bVal={bStanding ? `${bStanding.rank}.` : '—'}
+                    result={getComparison(aStanding?.rank, bStanding?.rank, { lowerIsBetter: true })}
+                  />
+                  <CompareRow
+                    label="Pontszám"
+                    aVal={aStanding ? String(aStanding.row.points) : '—'}
+                    bVal={bStanding ? String(bStanding.row.points) : '—'}
+                    result={getComparison(aStanding?.row.points, bStanding?.row.points)}
+                  />
+                  <CompareRow
+                    label="Győzelmek"
+                    aVal={aStanding ? String(aStanding.row.wins) : '—'}
+                    bVal={bStanding ? String(bStanding.row.wins) : '—'}
+                    result={getComparison(aStanding?.row.wins, bStanding?.row.wins)}
+                  />
+                  <CompareRow
+                    label="Lőtt gól / meccs"
+                    aVal={fmt(aGf, 2)}
+                    bVal={fmt(bGf, 2)}
+                    result={getComparison(aGf, bGf, { decimals: 2 })}
+                  />
+                  <CompareRow
+                    label="Kapott gól / meccs"
+                    aVal={fmt(aGa, 2)}
+                    bVal={fmt(bGa, 2)}
+                    result={getComparison(aGa, bGa, { lowerIsBetter: true, decimals: 2 })}
+                  />
+                  <CompareRow
+                    label="Over 2.5 %"
+                    aVal={aOU ? `${aOU.over25Pct.toFixed(1)}%` : '—'}
+                    bVal={bOU ? `${bOU.over25Pct.toFixed(1)}%` : '—'}
+                    result={getComparison(aOU?.over25Pct, bOU?.over25Pct, { decimals: 1 })}
+                  />
+                  <CompareRow
+                    label="BTTS %"
+                    aVal={aOU ? `${aOU.bttsPct.toFixed(1)}%` : '—'}
+                    bVal={bOU ? `${bOU.bttsPct.toFixed(1)}%` : '—'}
+                  />
+                  <CompareRow
+                    label="Forma pont (utolsó 5)"
+                    aVal={aForm ? String(aForm.formPoints) : '—'}
+                    bVal={bForm ? String(bForm.formPoints) : '—'}
+                    result={getComparison(aForm?.formPoints, bForm?.formPoints)}
+                  />
                 </tbody>
               </table>
             </div>
@@ -1675,71 +1581,6 @@ function TeamComparisonSection({
 }
 
 /* -------------------------------------------------------------------------- *
- * Team select                                                                 *
- * -------------------------------------------------------------------------- */
-
-function TeamSelect({
-  label,
-  value,
-  teamPool,
-  excludeKey,
-  onChange,
-  ariaLabel,
-}: {
-  label: string;
-  value: string | null;
-  teamPool: TeamPoolRow[];
-  excludeKey: string | null;
-  onChange: (key: string | null) => void;
-  ariaLabel: string;
-}) {
-  const availableTeams = useMemo(
-    () =>
-      teamPool.filter(
-        (team) => team.key !== excludeKey,
-      ),
-    [teamPool, excludeKey],
-  );
-
-  return (
-    <div className="flex min-w-0 flex-1 flex-col gap-1">
-      <label className="text-ui-xs text-muted-foreground">
-        {label}
-      </label>
-
-      <select
-        value={value ?? ''}
-        onChange={(event) =>
-          onChange(event.target.value || null)
-        }
-        aria-label={ariaLabel}
-        disabled={teamPool.length === 0}
-        className={cn(
-          'h-9 w-full rounded-lg border border-border bg-surface-1 px-3 text-ui-sm text-foreground outline-none transition-colors',
-          'focus:border-signal focus:ring-1 focus:ring-signal/20',
-          'disabled:cursor-not-allowed disabled:opacity-50',
-        )}
-      >
-        <option value="">
-          {teamPool.length === 0
-            ? '— Nincs csapat —'
-            : '— Válassz csapatot —'}
-        </option>
-
-        {availableTeams.map((team) => (
-          <option
-            key={team.key}
-            value={team.key}
-          >
-            {team.display}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- *
  * H2H stat                                                                    *
  * -------------------------------------------------------------------------- */
 
@@ -1787,193 +1628,6 @@ function H2HStat({
           {pct.toFixed(0)}%
         </div>
       ) : null}
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- *
- * Position chart                                                              *
- * -------------------------------------------------------------------------- */
-
-function PositionChart({
-  a,
-  b,
-  aLabel,
-  bLabel,
-}: {
-  a: PositionHistoryTeam | null;
-  b: PositionHistoryTeam | null;
-  aLabel: string;
-  bLabel: string;
-}) {
-  const maxRound = Math.max(
-    a?.history.length ?? 0,
-    b?.history.length ?? 0,
-  );
-
-  if (maxRound === 0) {
-    return (
-      <div className="py-6 text-center text-ui-sm text-muted-foreground">
-        Nincs elérhető helyezés-adat.
-      </div>
-    );
-  }
-
-  const maxPos = Math.max(
-    ...(a?.history.map((item) => item.position) ?? []),
-    ...(b?.history.map((item) => item.position) ?? []),
-    1,
-  );
-
-  /*
-   * FIX:
-   *
-   * The old formula:
-   *
-   *   h.round * (100 / maxRound)
-   *
-   * produced x=100 for the final point and becomes problematic when the
-   * chart contains only one round.
-   *
-   * For one point we deliberately place it at 50%.
-   * For multiple points we use the complete 0..100 chart width.
-   */
-  const xForRound = (round: number): number => {
-    if (maxRound <= 1) {
-      return 50;
-    }
-
-    return ((round - 1) / (maxRound - 1)) * 100;
-  };
-
-  /*
-   * Position 1 should be visually at the top.
-   *
-   * The denominator is protected against zero even for malformed data.
-   */
-  const yForPosition = (position: number): number => {
-    const denominator = Math.max(maxPos, 1);
-
-    if (denominator === 1) {
-      return 50;
-    }
-
-    return ((position - 1) / (denominator - 1)) * 100;
-  };
-
-  const toPoints = (
-    history: PositionHistoryTeam['history'],
-  ): string =>
-    history
-      .map(
-        (item) =>
-          `${xForRound(item.round)},${yForPosition(
-            item.position,
-          )}`,
-      )
-      .join(' ');
-
-  const aPoints = a
-    ? toPoints(a.history)
-    : '';
-
-  const bPoints = b
-    ? toPoints(b.history)
-    : '';
-
-  return (
-    <div>
-      <div className="relative h-48 w-full overflow-hidden rounded-lg border border-border-subtle bg-surface-1">
-        <svg
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          className="h-full w-full"
-          role="img"
-          aria-label="Tabellapozíció alakulása fordulónként"
-        >
-          {aPoints ? (
-            <polyline
-              points={aPoints}
-              fill="none"
-              stroke="var(--signal)"
-              strokeWidth={0.5}
-              vectorEffect="non-scaling-stroke"
-            />
-          ) : null}
-
-          {bPoints ? (
-            <polyline
-              points={bPoints}
-              fill="none"
-              stroke="var(--warning)"
-              strokeWidth={0.5}
-              vectorEffect="non-scaling-stroke"
-            />
-          ) : null}
-
-          {a?.history.map((item) => (
-            <circle
-              key={`a-${item.round}`}
-              cx={xForRound(item.round)}
-              cy={yForPosition(item.position)}
-              r={1}
-              fill="var(--signal)"
-            />
-          ))}
-
-          {b?.history.map((item) => (
-            <circle
-              key={`b-${item.round}`}
-              cx={xForRound(item.round)}
-              cy={yForPosition(item.position)}
-              r={1}
-              fill="var(--warning)"
-            />
-          ))}
-        </svg>
-
-        <div className="pointer-events-none absolute left-2 top-2 flex flex-col gap-1">
-          {a ? (
-            <div className="flex items-center gap-1.5 text-ui-xs">
-              <span className="h-0.5 w-4 bg-signal" />
-              <span className="text-foreground">
-                {aLabel}
-              </span>
-            </div>
-          ) : null}
-
-          {b ? (
-            <div className="flex items-center gap-1.5 text-ui-xs">
-              <span className="h-0.5 w-4 bg-warning" />
-              <span className="text-foreground">
-                {bLabel}
-              </span>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="mt-2 flex justify-between text-ui-xs text-muted-foreground">
-        <span>
-          {maxRound === 1
-            ? '1. forduló'
-            : '1. forduló'}
-        </span>
-
-        <span>
-          {maxRound}. forduló
-        </span>
-      </div>
-
-      <div className="mt-1 text-ui-xs text-muted-foreground">
-        <span className="mr-2">
-          Felül = 1. hely
-        </span>
-
-        <span>
-          Alul = {maxPos}. hely
-        </span>
-      </div>
     </div>
   );
 }
