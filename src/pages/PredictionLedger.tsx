@@ -36,6 +36,7 @@ import {
   SectionHeading } from
 '../components/winmix/Panel';
 import { PatternPerformanceTable } from '../components/winmix/PatternPerformanceTable';
+import { LedgerSyncStatus } from '../components/winmix/LedgerSyncStatus';
 import type { SlipStatus } from '../types/winmix';
 
 const INTRO =
@@ -124,6 +125,7 @@ export function PredictionLedger() {
         intro={INTRO}
         actions={
         <>
+            <LedgerSyncStatus slips={slips} />
             <button
             type="button"
             className="btn btn--outline tap"
