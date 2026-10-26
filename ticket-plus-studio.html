@@ -1,0 +1,1350 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TICKET+ Hardver Szimulátor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* CSS Reset & Variables */
+:root {
+  --ink: #070a0e;
+  --bg-rad: radial-gradient(1300px 700px at 25% -10%, #152232 0%, transparent 65%), linear-gradient(#080b0f, #040608);
+  --steel: #1b232d;
+  --steel-border: #323d4a;
+  --text: #eaeff5;
+  --mute: #8393a3;
+  --cyan: #38d6ff;
+  --led: #9be34a;
+  --warn: #f3b134;
+  --bad: #ff5547;
+  --gold: #f0cf65;
+  --ui: 'Barlow', system-ui, -apple-system, sans-serif;
+  --head: 'Barlow Condensed', 'Barlow', sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 18px 16px 40px;
+  background: var(--bg-rad);
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 14px; line-height: 1.4;
+  min-height: 100vh;
+}
+button { font-family: inherit; color: inherit; cursor: pointer; border: none; outline: none; }
+button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+.wrap { max-width: 1200px; margin: 0 auto; }
+.top-header {
+  display: flex; flex-wrap: wrap; gap: 14px 24px;
+  align-items: center; justify-content: space-between;
+  margin-bottom: 22px; border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding-bottom: 14px;
+}
+.brand { display: flex; flex-direction: column; gap: 2px; }
+.brand b { font-family: var(--head); font-weight: 700; font-size: 34px; letter-spacing: .06em; line-height: 1; }
+.brand b i { font-style: normal; color: var(--led); }
+.brand span { color: var(--mute); font-size: 13px; }
+
+.controls-bar { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; }
+.grp { display: flex; flex-direction: column; gap: 4px; }
+.grp small { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); font-family: var(--mono); }
+.seg { display: flex; background: #0c1015; border: 1px solid var(--steel-border); border-radius: 9px; padding: 3px; gap: 3px; }
+.seg button { background: transparent; border: 0; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--mute); min-height: 38px; transition: all .2s; }
+.seg button[aria-pressed=true] { background: #222c38; color: var(--text); box-shadow: inset 0 0 0 1px #3a4756; }
+.seg button.warnbtn[aria-pressed=true] { color: var(--warn); }
+.snd-btn { background: #0c1015; border: 1px solid var(--steel-border); border-radius: 9px; min-height: 44px; padding: 0 16px; font-size: 13px; color: var(--mute); transition: all .2s; }
+.snd-btn[aria-pressed=true] { color: var(--text); border-color: #3b4959; }
+
+.stage-grid { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 28px 36px; align-items: start; }
+@media (max-width: 960px) { .stage-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- Kiosk Cabinet & 3D Cutaway ---------- */
+.scene { position: relative; width: 100%; max-width: 440px; margin: 0 auto; perspective: 1800px; padding-bottom: 20px; }
+.scene::after { content: ""; position: absolute; left: 8%; right: 8%; bottom: 4px; height: 20px; background: radial-gradient(closest-side, rgba(56, 214, 255, 0.2), transparent); filter: blur(4px); pointer-events: none; }
+.cab { --ledc: var(--led); display: grid; position: relative; }
+.cab > .door, .cab > .inside { grid-area: 1/1; }
+
+.door {
+  position: relative; z-index: 2; transform-origin: 0 50%;
+  backface-visibility: hidden; transition: transform .9s cubic-bezier(.6,0,.2,1);
+  border-radius: 18px; border: 1px solid #384452; padding: 14px; display: flex; flex-direction: column; gap: 11px;
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,.015) 0 1px, transparent 1px 4px), linear-gradient(110deg, #1c222a 0%, #28303a 20%, #1a2027 48%, #252c36 76%, #181d24 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 1px rgba(0,0,0,.6), 0 40px 60px -30px rgba(0,0,0,.95);
+}
+.cab.open .door { transform: rotateY(-104deg); pointer-events: none; }
+.edge { position: absolute; left: -10px; top: 8px; bottom: 8px; width: 10px; border-radius: 6px 0 0 6px; background: linear-gradient(90deg, #0e1217, #28303a); opacity: 0; transition: opacity .3s .5s; z-index: 3; }
+.cab.open .edge { opacity: 1; }
+
+.ledbar { height: 6px; margin: 0 18px; border-radius: 3px; background: var(--ledc); box-shadow: 0 0 14px var(--ledc), 0 0 2px #fff inset; transition: background .3s, box-shadow .3s; animation: breathe 3s ease-in-out infinite; }
+.cab[data-busy="1"] .ledbar { animation-duration: .7s; }
+@keyframes breathe { 50% { opacity: 0.5; } }
+
+.plate { display: flex; justify-content: space-between; align-items: center; font-family: var(--head); letter-spacing: .14em; font-size: 13px; color: #a5b3c1; margin: -2px 4px 0; }
+.plate b { font-weight: 700; color: var(--text); } .plate b i { font-style: normal; color: var(--led); }
+
+.bezel { background: #040608; border-radius: 12px; padding: 8px; box-shadow: inset 0 0 0 1px #000, inset 0 2px 8px #000, 0 1px 0 rgba(255,255,255,.08); }
+.screen { position: relative; height: 490px; border-radius: 6px; overflow: hidden; background: linear-gradient(170deg, #0d3368, #071f40 75%); color: #fff; display: flex; flex-direction: column; font-size: 14px; }
+.glass { position: absolute; inset: 0; pointer-events: none; z-index: 5; background: linear-gradient(calc(108deg + var(--tilt,0)*1deg), rgba(255,255,255,.16), rgba(255,255,255,0) 35%, rgba(255,255,255,0) 65%, rgba(255,255,255,.06)); }
+.cab[data-oos="1"] .screen { background: #080a0d; }
+
+.keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.key { height: 40px; border-radius: 8px; border: 1px solid #37424e; background: linear-gradient(#2f3742, #20262e); box-shadow: 0 3px 0 #090c0f, inset 0 1px 0 rgba(255,255,255,.14); font-family: var(--head); font-weight: 600; letter-spacing: .08em; font-size: 13px; color: #ced7e1; position: relative; transition: transform .06s, box-shadow .06s; }
+.key:active, .key.pressed { transform: translateY(3px); box-shadow: 0 0 0 #090c0f; }
+.key::after { content: ""; position: absolute; top: 5px; right: 6px; width: 5px; height: 5px; border-radius: 50%; background: #262d35; }
+.key.lit::after { background: var(--led); box-shadow: 0 0 6px var(--led); }
+
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mod { background: #0d1116; border: 1px solid #28313c; border-radius: 10px; padding: 8px; position: relative; box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
+.mod h6 { margin: 0 0 6px; font: 600 11px var(--head); letter-spacing: .14em; color: #8895a3; text-transform: uppercase; }
+
+.nfc { display: grid; grid-template-columns: 74px 1fr; gap: 8px; align-items: center; }
+.pad { padding: 0; color: inherit; position: relative; width: 74px; height: 74px; border-radius: 11px; background: #080b0e; border: 1px solid #273039; cursor: pointer; display: grid; place-items: center; overflow: hidden; }
+.pad .ring { position: absolute; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #35404b; }
+.pad .ring.r2 { width: 46px; height: 46px; } .pad .ring.r3 { width: 64px; height: 64px; opacity: .6; }
+.pad.live .ring { border-color: var(--led); animation: ping 1.4s infinite; }
+.pad.live .ring.r2 { animation-delay: .2s; } .pad.live .ring.r3 { animation-delay: .4s; }
+@keyframes ping { 0% { opacity: .2; } 50% { opacity: 1; box-shadow: 0 0 10px var(--led); } 100% { opacity: .2; } }
+
+.ghost { position: absolute; left: 7px; top: -60px; width: 58px; height: 36px; border-radius: 6px; background: linear-gradient(120deg, #37414e, #202730); border: 1px solid #525e6e; opacity: 0; pointer-events: none; }
+.ghost.tap { animation: tap .9s ease-out; }
+@keyframes tap { 0% { opacity: 0; transform: translateY(0); } 25% { opacity: 1; } 55% { opacity: 1; transform: translateY(62px); } 100% { opacity: 0; transform: translateY(62px); } }
+
+.pin { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.pin i { height: 12px; border-radius: 3px; background: #232a32; box-shadow: 0 2px 0 #070a0c; transition: transform .05s; }
+.pin i.p { transform: translateY(2px); box-shadow: 0 0 0 #070a0c; }
+
+.billbox { position: relative; height: 74px; border-radius: 10px; background: #080b0e; overflow: hidden; border: 1px solid #273039; }
+.billbox .lit { position: absolute; inset: auto 10px 8px 10px; height: 24px; border-radius: 5px; border: 2px solid #252c34; background: #040608; z-index: 3; transition: all .2s; }
+.billbox.live .lit { border-color: var(--led); box-shadow: 0 0 10px var(--led), inset 0 0 8px rgba(155,227,74,.4); }
+.billbox.jam .lit { border-color: var(--bad); box-shadow: 0 0 10px var(--bad); animation: breathe .8s infinite; }
+
+.bill { position: absolute; left: 14px; right: 14px; top: -34px; height: 34px; border-radius: 3px; z-index: 2; font: 600 11px var(--mono); color: #0b2210; display: grid; place-items: center; background: linear-gradient(100deg, #99c798, #d4ebd0 50%, #99c798); border: 1px solid #6c996d; animation: feed .75s cubic-bezier(.5,0,.4,1) forwards; }
+@keyframes feed { 100% { transform: translateY(78px) rotate(0); } }
+
+.tslot { position: relative; }
+.tmouth { height: 12px; border-radius: 6px; background: #040608; box-shadow: inset 0 0 0 1px #252d36; position: relative; z-index: 3; }
+.tmouth::after { content: ""; position: absolute; left: 10px; right: 10px; top: 5px; height: 2px; background: #252c34; transition: background .2s, box-shadow .2s; }
+.cab[data-busy="1"] .tmouth::after { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.cab[data-done="1"] .tmouth::after { background: var(--led); box-shadow: 0 0 8px var(--led); }
+
+.twin { position: relative; height: 90px; overflow: hidden; margin: -6px 16px 0; border-radius: 0 0 8px 8px; background: #05070a; }
+.paper { position: absolute; left: 12px; right: 12px; top: 0; height: 130px; transform: translateY(-100%); background: #f3f1ea; color: #1e242a; border-radius: 0 0 3px 3px; padding: 12px 10px; font: 500 10px/1.4 var(--mono); box-shadow: 0 6px 12px rgba(0,0,0,.5); }
+.paper b { display: block; font-size: 12px; font-family: var(--head); }
+.paper em { position: absolute; right: 8px; top: 28px; border: 2px solid #b83224; color: #b83224; font: 700 11px var(--head); letter-spacing: .12em; padding: 0 4px; transform: rotate(-10deg); font-style: normal; }
+.paper.out { animation: out var(--print-duration,2500ms) steps(16,end) forwards; cursor: pointer; }
+@keyframes out { to { transform: translateY(-26%); } }
+.paper.take { transform: translateY(110%); opacity: 0; transition: transform .55s ease-in, opacity .55s; }
+
+.cslot { height: 8px; width: 44px; margin: 0 auto 6px; border-radius: 4px; background: #040608; box-shadow: inset 0 0 0 1px #252d36; }
+.cslot.live { box-shadow: inset 0 0 0 1px var(--led), 0 0 8px rgba(155,227,74,.5); }
+.tray { position: relative; height: 42px; overflow: hidden; }
+.tray .slot2 { position: absolute; left: 6px; right: 6px; bottom: 6px; height: 18px; border-radius: 5px; background: #05070a; box-shadow: inset 0 0 0 1px #252d36; }
+.coin { position: absolute; top: -12px; width: 11px; height: 11px; border-radius: 50%; background: radial-gradient(#ece6ce, #bbaa66); z-index: 2; animation: drop .6s cubic-bezier(.5,0,1,.8) forwards; }
+@keyframes drop { to { transform: translateY(44px); } }
+
+.helpbox { display: flex; align-items: center; gap: 12px; min-height: 42px; }
+.jack { width: 18px; height: 18px; border-radius: 50%; background: #05070a; border: 3px solid #29313a; }
+.round { width: 34px; height: 34px; border-radius: 50%; border: 2px solid #37424e; background: #151a20; font: 700 15px var(--head); display: grid; place-items: center; color: #cbd4de; box-shadow: 0 2px 0 #080a0d; }
+.round:active { transform: translateY(2px); box-shadow: none; }
+.vent { height: 32px; margin: 2px -14px 0; border-radius: 0 0 15px 15px; background: repeating-linear-gradient(90deg, #090c0f 0 3px, transparent 3px 8px), #151a20; border-top: 1px solid #2d3641; }
+
+/* ---------- Kiosk Screen Content ---------- */
+.stop { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; background: rgba(0,0,0,.3); font-size: 12px; flex: none; }
+.slogo { font-family: var(--head); font-weight: 700; letter-spacing: .1em; font-size: 16px; } .slogo b { color: var(--led); }
+.sdemo { font: 600 10px var(--mono); color: #0a1705; background: var(--led); border-radius: 4px; padding: 2px 6px; }
+.sclock { font: 500 12px var(--mono); color: #b2c6e2; }
+
+.smain { flex: 1; min-height: 0; padding: 10px 12px 6px; display: flex; flex-direction: column; gap: 8px; }
+.smain h3 { margin: 0; font: 600 23px var(--head); letter-spacing: .02em; }
+.sub { color: #b2c6e2; font-size: 13px; }
+.lbl { font: 600 11px var(--head); letter-spacing: .14em; text-transform: uppercase; color: #94b9e6; margin-top: 2px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: #164383; border: 1px solid #2762b3; border-radius: 8px; padding: 0 11px; min-height: 36px; font-size: 13px; color: #fff; font-weight: 500; }
+.chip.on { background: var(--led); border-color: var(--led); color: #0a1705; font-weight: 600; }
+.info { margin-top: auto; font: 500 12px var(--mono); color: #cbe0f8; background: rgba(0,0,0,.25); border-radius: 8px; padding: 7px 10px; }
+.swap { align-self: flex-start; background: transparent; border: 1px solid #4274bc; border-radius: 7px; color: #cbe0f8; min-height: 32px; padding: 0 10px; font-size: 12px; }
+
+.snav { flex: none; display: flex; gap: 8px; padding: 8px 12px 12px; }
+.btn { flex: 1; min-height: 44px; border-radius: 9px; border: 1px solid #336bba; background: #154285; color: #fff; font-weight: 600; font-size: 15px; }
+.btn.pri { background: var(--led); border-color: var(--led); color: #0a1705; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.ghostb { flex: 0 0 36%; background: transparent; }
+
+.dep { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: center; width: 100%; text-align: left; background: #154285; border: 1px solid #2762b3; border-radius: 9px; padding: 7px 10px; color: #fff; min-height: 58px; }
+.dep .tm { font: 600 24px var(--head); line-height: 1; }
+.dep .mid { font-size: 12px; color: #cbe0f8; min-width: 0; }
+.dep .mid b { display: block; font-weight: 600; color: #fff; }
+.dep .r { font: 500 11px var(--mono); color: #b3cde8; text-align: right; }
+.tagf { font: 600 10px var(--head); letter-spacing: .1em; background: var(--warn); color: #231700; border-radius: 3px; padding: 1px 4px; margin-left: 5px; }
+
+.pill2 { display: flex; gap: 6px; }
+.pill2 button { flex: 1; min-height: 38px; border-radius: 8px; border: 1px solid #2762b3; background: #154285; color: #fff; font-weight: 500; font-size: 13px; }
+.pill2 button.on { background: var(--led); border-color: var(--led); color: #0a1705; font-weight: 600; }
+
+.stp { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; background: rgba(0,0,0,.22); border-radius: 9px; padding: 5px 8px 5px 10px; }
+.stp .n { font-size: 13px; font-weight: 500; line-height: 1.2; } .stp .n small { display: block; color: #a2bedf; font-weight: 400; font-size: 11px; }
+.ctr { display: flex; align-items: center; gap: 8px; }
+.ctr button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid #336bba; background: #154285; color: #fff; font-size: 18px; }
+.ctr b { min-width: 18px; text-align: center; font: 600 18px var(--head); }
+
+.tot { display: flex; justify-content: space-between; align-items: baseline; background: rgba(0,0,0,.32); border-radius: 9px; padding: 8px 12px; margin-top: auto; }
+.tot b { font: 700 26px var(--head); color: var(--led); }
+
+.ln { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.1); }
+.ln span:last-child { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+
+.pm { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; min-height: 50px; border-radius: 10px; border: 1px solid #336bba; background: #154285; color: #fff; padding: 0 12px; font-size: 15px; font-weight: 600; }
+.pm:disabled { opacity: .45; background: #192b45; } .pm small { display: block; font-weight: 400; font-size: 11px; color: #b3cde8; }
+.ic { width: 24px; height: 24px; border-radius: 6px; background: var(--led); flex: none; }
+
+.center { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; flex: 1; }
+.halo { width: 78px; height: 78px; border-radius: 18px; border: 3px solid var(--led); display: grid; place-items: center; animation: ping 1.2s infinite; }
+.halo i { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--led); }
+.prog { width: 80%; height: 8px; background: rgba(0,0,0,.35); border-radius: 4px; overflow: hidden; }
+.prog i { display: block; height: 100%; width: 0; background: var(--led); animation: prog var(--print-duration,2500ms) linear forwards; }
+@keyframes prog { to { width: 100%; } }
+
+.bills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.bills button { min-height: 34px; border-radius: 7px; border: 1px solid #6c996d; background: linear-gradient(100deg, #99c798, #d4ebd0 50%, #99c798); color: #0b2210; font: 600 12px var(--mono); }
+.bills button:disabled { opacity: .45; }
+
+.coins { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.coins button { min-height: 34px; border-radius: 17px; border: 1px solid #bbaa66; background: radial-gradient(#ece6ce, #bbaa66); color: #282006; font: 600 11px var(--mono); }
+.coins button:disabled { opacity: .45; }
+
+.amt { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; text-align: center; }
+.amt div { background: rgba(0,0,0,.28); border-radius: 8px; padding: 5px 3px; } .amt small { display: block; font-size: 10px; color: #a2bedf; } .amt b { font: 600 18px var(--head); }
+
+.oos { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; flex: 1; padding: 20px; color: #cbd5e1; }
+.oos h3 { font: 700 32px var(--head); margin: 0; color: var(--c); }
+.oos code { font: 500 12px var(--mono); color: #92a1b0; border: 1px solid #28313c; border-radius: 5px; padding: 3px 8px; }
+.warnx { width: 56px; height: 56px; border: 4px solid var(--c); border-radius: 50%; display: grid; place-items: center; font: 700 30px var(--head); color: var(--c); }
+
+.notice { background: rgba(243,177,52,.18); border: 1px solid var(--warn); border-radius: 8px; padding: 6px 10px; font-size: 12px; color: #ffdf9e; }
+.helpov { position: absolute; inset: 32px 0 0 0; background: rgba(4,14,30,.96); z-index: 4; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.helpov h3 { margin: 0; font: 600 22px var(--head); }
+
+.home { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 8px 4px; }
+.home h2 { margin: 0; font: 700 48px/0.95 var(--head); letter-spacing: .01em; }
+.home p { margin: 0; color: #b2c6e2; }
+.feat { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px; color: #cbe0f8; }
+.feat span { background: rgba(0,0,0,.22); border-radius: 7px; padding: 5px 7px; }
+.touch { animation: breathe 1.8s infinite; font: 600 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--led); }
+
+/* ---------- SERVICE CUTAWAY (Exact 3D Render Alignment) ---------- */
+.inside {
+  position: relative; z-index: 1; opacity: 0; pointer-events: none;
+  transition: opacity .4s .35s; border-radius: 18px; border: 1px solid #33404d;
+  background: radial-gradient(380px 320px at 70% 0%, rgba(56, 214, 255, 0.08), transparent), linear-gradient(155deg, #10161f, #070b0f);
+  padding: 12px; display: flex; flex-direction: column; gap: 10px; box-shadow: inset 0 0 40px #000;
+}
+.cab.open .inside { opacity: 1; pointer-events: auto; }
+.inside > h5 { margin: 0; display: flex; justify-content: space-between; font: 600 12px var(--head); letter-spacing: .14em; color: #8896a5; text-transform: uppercase; }
+.inside > h5 span:last-child { color: var(--led); }
+
+.hw-caption { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #7f91a1; font: 500 10px var(--mono); letter-spacing: .07em; }
+.hw-caption strong { color: #8fe2ff; font-weight: 500; }
+
+.hw-flow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hw-path { border: 1px solid #2a3744; border-radius: 9px; padding: 8px; background: linear-gradient(140deg, #131c25, #0a0f15); }
+.hw-path .hw-kicker { font: 600 10px var(--mono); letter-spacing: .12em; color: #728d9f; }
+.hw-path .hw-line { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin: 4px 0 2px; }
+.hw-path .hw-node { font: 600 11px var(--head); letter-spacing: .05em; color: #e5eff7; }
+.hw-path .hw-arrow { color: var(--cyan); font: 700 11px var(--mono); }
+.hw-path .hw-note { font-size: 10px; color: #7b8c9b; line-height: 1.35; }
+
+/* Grid of SVG Units Matching Reference */
+.rack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; position: relative; z-index: 1; align-content: start; }
+
+.unit {
+  min-height: 124px; padding: 9px; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 8px;
+  align-items: start; text-align: left; background: linear-gradient(155deg, #1d2630, #10161d 80%);
+  border: 1px solid #2d3844; border-radius: 10px; width: 100%; position: relative; overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 14px rgba(0,0,0,0.4);
+}
+.unit::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #475563; }
+.unit.hw-money::before { background: var(--led); }
+.unit.hw-coin::before { background: var(--warn); }
+.unit.hw-service::before { background: var(--cyan); }
+.unit[aria-pressed=true] { border-color: var(--led); box-shadow: 0 0 0 1px var(--led) inset; background: linear-gradient(155deg, #243432, #111a1b); }
+.unit svg { width: 34px; height: 34px; stroke: #bdccd8; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.unit .nm { font: 600 15px var(--head); letter-spacing: .03em; line-height: 1.1; color: #e5eff7; }
+.unit .nm small { display: block; font: 400 11px var(--ui); color: var(--mute); letter-spacing: 0; margin-top: 2px; }
+.unit .mv { font: 500 11px var(--mono); color: #d7e2ec; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unit .sl { display: block; width: 8px; height: 8px; border-radius: 50%; margin: 0; flex: none; background: var(--led); box-shadow: 0 0 7px var(--led); }
+.unit .sl.warn { background: var(--warn); box-shadow: 0 0 7px var(--warn); }
+.unit .sl.bad { background: var(--bad); box-shadow: 0 0 7px var(--bad); }
+.unit .ft { grid-column: 1/-1; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.unit .bar { grid-column: 1/-1; height: 4px; border-radius: 2px; background: #080c10; overflow: hidden; }
+.unit .bar.na { visibility: hidden; }
+.unit .bar i { display: block; height: 100%; width: 0; background: var(--led); transition: width .4s; }
+.unit.act { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan) inset; }
+
+/* SVG Hardware Cutaway Visuals inside cards */
+.hw-cutaway-svg { grid-column: 1/-1; width: 100%; height: 38px; background: #080b0e; border: 1px solid #232d37; border-radius: 5px; margin-top: 2px; overflow: hidden; }
+.unit.act .hw-cutaway-svg { border-color: var(--cyan); }
+
+.fan { transform-origin: 19px 19px; animation: spin var(--sp, 1.2s) linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.hw-inventory { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.hw-denom { border: 1px solid #25313c; border-radius: 7px; padding: 5px 3px; background: #0a0f14; text-align: center; }
+.hw-denom b { display: block; font: 600 11px var(--mono); color: #e1e9f0; }
+.hw-denom small { display: block; font: 400 9px var(--mono); color: #8b9cae; }
+.hw-meter { height: 3px; background: #202b35; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.hw-meter i { display: block; height: 100%; background: var(--led); width: 0; transition: width .3s; }
+.hw-denom.low .hw-meter i { background: var(--warn); }
+
+/* ---------- Side Column Panels ---------- */
+.side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.card { background: linear-gradient(#12171e, #0d1117); border: 1px solid var(--steel-border); border-radius: 13px; padding: 14px; min-width: 0; }
+.card h4 { margin: 0 0 9px; font: 600 13px var(--head); letter-spacing: .16em; text-transform: uppercase; color: var(--mute); }
+
+.note { display: flex; gap: 10px; align-items: flex-start; border-color: #38451c; background: linear-gradient(#141a10, #0d120a); }
+.note p { margin: 0; color: #c9d4bd; font-size: 13px; }
+.note b { color: var(--led); font: 600 11px var(--head); letter-spacing: .14em; }
+
+.steps { list-style: none; margin: 0; padding: 0; display: grid; }
+.steps li { display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: center; padding: 6px 0; color: var(--mute); font-size: 13px; border-bottom: 1px solid #182028; }
+.steps li:last-child { border-bottom: 0; }
+.steps li i { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #333d48; display: grid; place-items: center; font: 500 11px var(--mono); font-style: normal; }
+.steps li.on { color: var(--text); font-weight: 600; } .steps li.on i { border-color: var(--led); color: var(--led); box-shadow: 0 0 8px rgba(155,227,74,.4); }
+.steps li.done { color: #acb9c5; } .steps li.done i { background: var(--led); border-color: var(--led); color: #0a1705; }
+
+.hide { display: none !important; }
+
+.ticket { position: relative; background: #f3f1ea; color: #1c2227; border-radius: 6px; padding: 14px; font-family: var(--mono); font-size: 11px; overflow: hidden; max-width: 380px; }
+.ticket::before { content: "DEMÓ · NEM ÉRVÉNYES · DEMÓ · NEM ÉRVÉNYES · DEMÓ · NEM ÉRVÉNYES"; position: absolute; inset: -20% -30%; transform: rotate(-24deg); font: 700 24px/2.4 var(--head); letter-spacing: .12em; color: rgba(192,57,43,.12); word-break: break-all; pointer-events: none; }
+.ticket > * { position: relative; }
+.ticket .hd { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px dashed #99998e; padding-bottom: 6px; }
+.ticket .hd b { font: 700 20px var(--head); letter-spacing: .08em; }
+.ticket .rt { font: 700 24px var(--head); line-height: 1.1; margin: 8px 0 2px; }
+.ticket .kv { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.ticket .sum { border-top: 1px dashed #99998e; margin-top: 6px; padding-top: 6px; font-size: 13px; font-weight: 600; }
+.ticket svg { width: 88px; height: 88px; display: block; margin: 8px 0 4px; fill: #1e242a; }
+.ticket .fine { font-size: 9px; color: #646962; line-height: 1.35; }
+.empty { color: var(--mute); font-size: 13px; }
+
+.btn2 { margin-top: 10px; background: #171f27; border: 1px solid var(--steel-border); border-radius: 8px; min-height: 38px; padding: 0 12px; font-size: 13px; }
+.dhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+.dhead b { font: 700 22px var(--head); letter-spacing: .02em; }
+.pill { font: 500 11px var(--mono); border-radius: 999px; padding: 2px 9px; border: 1px solid var(--led); color: var(--led); }
+.pill.warn { border-color: var(--warn); color: var(--warn); } .pill.bad { border-color: var(--bad); color: var(--bad); }
+
+.spark { width: 100%; height: 55px; display: block; margin: 4px 0 8px; }
+.kvs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.kvs div { background: #0c1015; border: 1px solid #1f2731; border-radius: 8px; padding: 6px 8px; }
+.kvs small { display: block; color: var(--mute); font-size: 11px; }
+.kvs b { font: 500 14px var(--mono); }
+
+.faults { display: grid; gap: 7px; }
+.fault { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; background: #0c1015; border: 1px solid #1f2731; border-radius: 9px; padding: 7px 10px; width: 100%; text-align: left; }
+.fault small { display: block; color: var(--mute); font: 400 11px var(--mono); }
+.sw { width: 40px; height: 22px; border-radius: 11px; background: #232a33; position: relative; transition: background .2s; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #9faec0; transition: transform .2s; }
+.fault[aria-checked=true] .sw { background: var(--bad); }
+.fault[aria-checked=true] .sw::after { transform: translateX(18px); background: #fff; }
+
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font: 400 11px var(--mono); }
+.log li { display: grid; grid-template-columns: 58px 1fr; gap: 8px; color: #a1b0c0; }
+.log li.ok { color: #c4e69b; } .log li.warn { color: var(--warn); } .log li.bad { color: var(--bad); }
+
+.toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: #eaeff5; color: #0c1015; border-radius: 9px; padding: 8px 15px; font-size: 13px; font-weight: 500; z-index: 20; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+
+.scn { display: grid; gap: 7px; }
+.scr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; background: #0c1015; border: 1px solid #1f2731; border-radius: 9px; padding: 7px 10px; }
+.scr b { font-weight: 600; } .scr small { display: block; color: var(--mute); font-size: 11px; }
+.scq { display: flex; gap: 6px; align-items: center; }
+.sbtn { min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--steel-border); background: #171f27; font-size: 13px; }
+.sbtn:disabled { opacity: .45; cursor: not-allowed; }
+.scq2 { display: flex; gap: 6px; flex-wrap: wrap; }
+.res { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; font-size: 12px; }
+.res li { display: grid; grid-template-columns: 18px 1fr; gap: 5px; color: #c4e69b; } .res li.bad { color: var(--bad); } .res li i { font-style: normal; font-family: var(--mono); }
+.fp { font: 400 11px var(--mono); color: var(--mute); } .fp b { color: var(--text); font-weight: 500; }
+
+/* TICKET+ Studio — reference-inspired extension */
+:root{--panel-glow:rgba(56,214,255,.09)}
+body{background-attachment:fixed;transition:background .45s}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(90deg,transparent 49.8%,#72b8de06 50%,transparent 50.2%),linear-gradient(0deg,transparent 49.8%,#72b8de06 50%,transparent 50.2%);background-size:100px 100px;mask-image:linear-gradient(transparent,#000)}
+body[data-environment="station"]{--bg-rad:radial-gradient(ellipse at 15% 0%,#45606f 0%,transparent 48%),linear-gradient(120deg,#152733,#101923 55%,#253a43)}
+body[data-environment="station"]::before{background:repeating-linear-gradient(90deg,transparent 0 200px,#b1d0df12 201px 207px,transparent 208px 330px),linear-gradient(175deg,transparent 50%,#c7dbe310 50.1%,transparent 74%);background-size:auto;mask-image:none}
+.wrap{max-width:1540px}.top-header{padding-top:8px}.brand span{max-width:310px}
+.stage-grid{grid-template-columns:minmax(320px,440px) minmax(0,1fr);gap:26px 38px}
+.scene{grid-column:1;grid-row:1/span 2}.side{grid-column:2}.floating-dashboard{grid-column:2;grid-row:1;min-width:0;display:grid;gap:16px;align-self:start}
+body[data-view="inside"] .stage-grid>.side{grid-row:2}
+.cab>.inside{position:absolute;inset:0}.cab.open>.inside{position:relative;inset:auto}.cab.open>.door{position:absolute;inset:0}
+.door{padding-left:18px;padding-right:18px;isolation:isolate}
+.door::before,.door::after{content:"";position:absolute;top:24px;bottom:44px;width:3px;background:var(--ledc);box-shadow:0 0 10px var(--ledc),0 0 22px color-mix(in srgb,var(--ledc),transparent 65%);border-radius:3px;pointer-events:none;z-index:-1;transition:background .3s}
+.door::before{left:5px}.door::after{right:5px}.cab.open .door{filter:brightness(.6)}
+.fan{transform-box:fill-box;transform-origin:center}.unit .hw-cutaway-svg{width:100%;height:42px;stroke-width:1}
+.rack{grid-template-areas:"pc net" "psu thermal" "printer pay" "bnr eagle" "billcas hoppers" "payout payout"}
+.unit[data-mod="pc"]{grid-area:pc}.unit[data-mod="net"]{grid-area:net}.unit[data-mod="psu"]{grid-area:psu}.unit[data-mod="thermal_mgmt"]{grid-area:thermal}.unit[data-mod="printer"]{grid-area:printer}.unit[data-mod="pay"]{grid-area:pay}.unit[data-mod="bnr"]{grid-area:bnr}.unit[data-mod="eagle"]{grid-area:eagle}.unit[data-mod="billcas"]{grid-area:billcas}.unit[data-mod="hoppers"]{grid-area:hoppers}.unit[data-mod="payout"]{grid-area:payout}
+.inside{border:1px solid #42616d;box-shadow:inset 0 0 45px #000,0 0 50px #38d6ff08}
+.dash-panel{position:relative;min-width:0;border:1px solid #4a899d80;background:linear-gradient(135deg,#142b37e8,#0b1722ee);padding:15px;border-radius:3px;box-shadow:0 20px 45px #0005,inset 0 0 30px #38d6ff06;backdrop-filter:blur(14px)}
+.dash-panel::before{content:"";position:absolute;left:-1px;top:-1px;width:48px;height:3px;background:var(--cyan);box-shadow:0 0 12px #38d6ff77}
+.dash-header{display:flex;justify-content:space-between;align-items:center;gap:8px;font:600 13px var(--head);letter-spacing:.11em;color:#c5eaf4;border-bottom:1px solid #44708055;padding-bottom:10px;margin-bottom:12px}
+.dash-header small{font:10px var(--mono);color:var(--led);letter-spacing:0}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.dash-chart{min-width:0;background:#07141c88;border:1px solid #38566977;padding:10px}
+.dash-chart>small,.sim-label{font:10px var(--mono);letter-spacing:.04em;color:#8fb1c0}.dash-chart h3{font:600 24px var(--head);margin:4px 0;color:#d8edf3}.dash-chart h3 span{font:11px var(--mono);color:#8fb1c0}
+.dash-chart.wide{grid-column:1/-1}.live-chart{display:block;width:100%;height:64px;margin-top:8px}.flow-graph{display:block;width:100%;height:84px}.dash-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:10px}.metric{background:#08141e;border:1px solid #38566966;padding:9px;min-width:0}.metric small{display:block;color:#89a8b9;font:10px var(--mono)}.metric b{font:500 17px var(--mono);color:#d6f3fa;white-space:nowrap;display:block;margin-top:5px}
+.dash-log{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:5px;font:10px/1.5 var(--mono);max-height:150px;overflow:auto}.dash-log li{display:grid;grid-template-columns:58px 1fr;gap:7px;color:#a7bdc9}.dash-log .ok{color:var(--led)}.dash-log .bad{color:var(--bad)}.dash-log .warn{color:var(--warn)}
+.visual-hoppers{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:8px 0 0}.hopper-tube{text-align:center;min-width:0}.tube-glass{position:relative;height:122px;max-width:55px;margin:0 auto 8px;border:1px solid #6f96a0;border-top:5px solid #607780;border-bottom:9px solid #354b56;border-radius:8px 8px 5px 5px;background:linear-gradient(90deg,#a5d9e51c,transparent 30%,#050a0d88 65%,#bce6ef1a);box-shadow:inset 4px 0 5px #addbe622;overflow:hidden}.stacked-coin{position:absolute;left:8%;right:8%;height:5px;border-radius:50%;border:1px solid #bdbd9d;background:linear-gradient(#e4ddbd,#868263);box-shadow:0 1px 1px #0006}.hopper-tube small{font:10px var(--mono);display:block;color:#b5d2de}.hopper-tube b{font:11px var(--mono);color:var(--led)}.hopper-tube.low b{color:var(--warn)}.hopper-tube.jam .tube-glass{border-color:var(--bad)}.hopper-tube.jam b{color:var(--bad)}
+.inventory-bars{display:grid;gap:7px;margin-top:10px}.inventory-row{display:grid;grid-template-columns:78px 1fr 62px;gap:8px;align-items:center;font:10px var(--mono);color:#9ebdca}.inventory-row>i{height:7px;background:#061019;display:block}.inventory-row>i>span{display:block;height:100%;background:linear-gradient(90deg,#38d6ff,#9be34a);transition:width .3s}.inventory-row>b{text-align:right;font-weight:400}.inventory-row.low>i>span{background:var(--warn)}
+.lang-picker{display:flex;gap:4px;flex-wrap:wrap}.lang-picker button{min-height:30px;padding:4px 8px;background:#112f55;border:1px solid #4773a0;border-radius:5px;font:11px var(--mono);color:#d7eaf8}.lang-picker button[aria-pressed="true"]{color:#0b210d;background:var(--led);border-color:var(--led)}
+.screen .smain{overflow-y:auto}.screen .home h2{font-size:43px}.screen .sclock{font-size:11px}.stop{gap:5px;padding:8px}.sdemo{font-size:9px}.key{letter-spacing:.02em}
+.accessibility-strip{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #3a444e;padding-top:10px}.accessibility-strip .braille{font-size:24px;letter-spacing:5px;color:#c8d2da}.accessibility-strip small{color:var(--mute);font:10px var(--mono)}.accessibility-strip button{border:1px solid #536b7b;border-radius:5px;padding:7px;background:#152531;color:#cde3ef;font-size:12px;min-height:36px}
+body[data-contrast="true"] .screen{background:#000}.screen a,.screen button{touch-action:manipulation}body[data-contrast="true"] .screen button{border:2px solid #fff}body[data-contrast="true"] .screen .sub,body[data-contrast="true"] .screen .lbl{color:#fff}
+.demo-footer{margin:24px 0 0;color:#829eaf;border-top:1px solid #294250;padding-top:12px;font:11px/1.7 var(--mono)}
+#toast{max-width:calc(100vw - 28px)}
+@media(min-width:1450px){body[data-view="inside"] .stage-grid{grid-template-columns:minmax(320px,420px) minmax(0,1fr) 310px;gap:25px}body[data-view="inside"] .stage-grid>.side{grid-column:3;grid-row:1}.dash-panel{transform:perspective(1600px) rotateY(-2deg);transform-origin:left center}}
+@media(max-width:1050px){.dash-metrics{grid-template-columns:repeat(2,1fr)}.dash-grid{grid-template-columns:1fr}.dash-chart.wide{grid-column:auto}.stage-grid{gap:22px}.controls-bar{gap:10px}}
+@media(max-width:800px){.stage-grid,body[data-view="inside"] .stage-grid{grid-template-columns:minmax(0,1fr)}.scene{grid-column:1;grid-row:auto}.floating-dashboard,.side,body[data-view="inside"] .stage-grid>.side{grid-column:1;grid-row:auto}.floating-dashboard{width:100%}.dash-grid{grid-template-columns:1fr 1fr}.top-header{align-items:flex-start}.controls-bar{width:100%}.seg button{padding:8px 10px}.dash-panel{transform:none}}
+@media(max-width:420px){body{padding:12px 9px 30px}.dash-grid{grid-template-columns:1fr}.dash-chart.wide{grid-column:auto}.unit{padding:7px;grid-template-columns:26px 1fr;gap:4px}.unit svg{width:26px}.unit .hw-cutaway-svg{width:100%}.unit .nm{font-size:13px}.unit .mv{font-size:10px}.hw-flow{grid-template-columns:1fr}.dash-panel{padding:11px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}.cab.open .door{transform:rotateY(-104deg)}}
+
+</style>
+</head>
+<body data-environment="control" data-view="front">
+
+<div class="wrap">
+  <header class="top-header">
+    <div class="brand">
+      <b>TICKET<i>+</i></b>
+      <span>Hardverarchitektúra &amp; Telemetria Szimulátor</span>
+    </div>
+    <div class="controls-bar">
+      <div class="grp">
+        <small>Nézet</small>
+        <div class="seg" id="segView">
+          <button data-view="front" aria-pressed="true">Elölnézet</button>
+          <button data-view="inside" aria-pressed="false">Belső nézet</button>
+        </div>
+      </div>
+      <div class="grp">
+        <small>Üzemmód</small>
+        <div class="seg" id="segMode">
+          <button data-oos="0" aria-pressed="true">Normál üzem</button>
+          <button data-oos="1" class="warnbtn" aria-pressed="false">Üzemen kívül</button>
+        </div>
+      </div>
+      <div class="grp"><small>Környezet</small><div class="seg" id="segEnvironment"><button data-env="control" aria-pressed="true">Irányítóközpont</button><button data-env="station" aria-pressed="false">Vasútállomás</button></div></div>
+      <button class="snd-btn" id="sndBtn" aria-pressed="true">Hang: be</button>
+    </div>
+  </header>
+
+  <div class="stage-grid">
+    <!-- Physical Kiosk & Interior Scene -->
+    <div class="scene" id="scene">
+      <div class="cab" id="cab">
+        <!-- Front Door Kiosk View -->
+        <div class="door" id="door">
+          <div class="ledbar"></div>
+          <div class="plate"><b>TICKET<i>+</i></b><span>SELF-SERVICE · 24/7</span></div>
+          <div class="bezel"><div class="screen" id="screen"></div></div>
+          <div class="keys" id="keys">
+            <button class="key" data-key="back" aria-label="Vissza">VISSZA</button>
+            <button class="key" data-key="cancel" aria-label="Mégse">MÉGSE</button>
+            <button class="key" data-key="help" aria-label="Súgó">SÚGÓ</button>
+            <button class="key" data-key="lang" aria-label="Nyelv váltása">HU / EN</button>
+          </div>
+          <div class="row2">
+            <div class="mod">
+              <h6>Kártyaolvasó &amp; PIN</h6>
+              <div class="nfc">
+                <button type="button" class="pad" id="pad" aria-label="Érintéses kártyaolvasó">
+                  <span class="ring r3"></span><span class="ring r2"></span><span class="ring"></span>
+                  <span class="ghost" id="ghost"></span>
+                </button>
+                <div class="pin" id="pin"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              </div>
+            </div>
+            <div class="mod">
+              <h6>Bankjegyfogadó</h6>
+              <div class="billbox" id="billbox">
+                <div id="billfeed"></div>
+                <div class="lit"></div>
+              </div>
+            </div>
+          </div>
+          <div class="mod tslot">
+            <h6>Jegykiadó nyílás</h6>
+            <div class="tmouth"></div>
+            <div class="twin"><div class="paper" id="paper"></div></div>
+          </div>
+          <div class="row2">
+            <div class="mod">
+              <h6>Érme be · visszajáró</h6>
+              <div class="cslot" id="cslot"></div>
+              <div class="tray" id="tray"><div class="slot2"></div></div>
+            </div>
+            <div class="mod">
+              <h6>Segítség &amp; Hang</h6>
+              <div class="helpbox">
+                <span class="jack" title="Fejhallgató-csatlakozó"></span>
+                <button class="round" data-key="help" aria-label="Segítség gomb">?</button>
+              </div>
+            </div>
+          </div>
+          <div class="accessibility-strip"><span class="braille" aria-hidden="true">⠞ ⠊ ⠉</span><small>TICKET+ · DEMÓ</small><button id="contrastBtn" aria-pressed="false" aria-label="Magas kontraszt váltása">◐ Kontraszt</button></div><div class="vent"></div>
+        </div>
+
+        <span class="edge"></span>
+
+        <!-- Service Cutaway View (Matches 3D Render Architecture) -->
+        <div class="inside" id="inside" inert>
+          <h5><span>Belső Hardver Architektúra</span><span>Szervizajtó nyitva</span></h5>
+          <div class="hw-caption"><span>HARDWARE RACK LAYOUT</span><strong>BNR / EAGLE / HOPPER SYSTEM</strong></div>
+          <div class="hw-flow">
+            <div class="hw-path">
+              <div class="hw-kicker">BANKJEGY ÁG</div>
+              <div class="hw-line"><span class="hw-node">BNR</span><span class="hw-arrow">→</span><span class="hw-node">ESCROW</span><span class="hw-arrow">→</span><span class="hw-node">KAZETTA</span></div>
+              <div class="hw-note">Befogadás, tárolás &amp; visszaforgatás</div>
+            </div>
+            <div class="hw-path">
+              <div class="hw-kicker">ÉRME ÁG</div>
+              <div class="hw-line"><span class="hw-node">EAGLE</span><span class="hw-arrow">→</span><span class="hw-node">SORTER</span><span class="hw-arrow">→</span><span class="hw-node">HOPPEREK</span></div>
+              <div class="hw-note">Mérés, válogatás &amp; érmekifizetés</div>
+            </div>
+          </div>
+          <div class="hw-caption"><span>MODULOK (KATTINTS A RÉSZLETEKÉRT)</span></div>
+          <div class="rack" id="mods"></div>
+          <div class="hw-caption"><span>HOPPER ÉRMEKÉSZLETEK</span><strong id="hwInventoryTotal">—</strong></div>
+          <div class="hw-inventory" id="hwInventory"></div><div id="visualHoppers" class="visual-hoppers" aria-label="Szimulált érmekészletek"></div>
+        </div>
+      </div>
+    </div>
+
+
+    <section class="floating-dashboard hide" id="floatingDashboard" aria-label="Szimulált élő telemetria">
+      <section class="dash-panel"><div class="dash-header">TICKET+ / CONTROL CENTER <small>● SZIMULÁCIÓ · 1 Hz</small></div>
+        <div class="dash-metrics" id="dashMetrics"></div>
+        <div class="dash-grid"><div class="dash-chart wide"><small>TRANZAKCIÓS ÁLLAPOTGÉP</small><svg class="flow-graph" id="flowGraph" viewBox="0 0 520 80" role="img" aria-label="Vásárlási folyamat aktuális állapota"></svg></div>
+        <div class="dash-chart"><small>CPU TERHELÉS</small><h3 id="dashCpu">—</h3><div id="cpuGraph"></div></div>
+        <div class="dash-chart"><small>HÁLÓZATI KÉSLELTETÉS</small><h3 id="dashLatency">—</h3><div id="latencyGraph"></div></div>
+        <div class="dash-chart wide"><small>RENDSZER ESEMÉNYNAPLÓ</small><ol class="dash-log" id="dashLog"></ol></div></div>
+      </section>
+      <section class="dash-panel"><div class="dash-header">HARDVER / KÉSZLET <small>LIVE DIGITAL MODEL</small></div>
+        <div class="dash-grid"><div class="dash-chart"><small>24 V TÁPSÍN</small><h3 id="dashPower">—</h3><div id="powerGraph"></div></div><div class="dash-chart"><small>BELSŐ HŐMÉRSÉKLET</small><h3 id="dashThermal">—</h3><div id="thermalGraph"></div></div></div>
+        <div id="inventoryOszlopok" class="inventory-bars"></div><p class="sim-label">A kapacitások és szenzorértékek konfigurált demóadatok, nem gyártói specifikációk.</p>
+      </section>
+    </section>
+
+    <!-- Side Control Column -->
+    <aside class="side">
+      <section class="card note">
+        <b>INTERAKTÍV HARDVER DEMÓ</b>
+        <p>Látványreferenciák ihlette, böngészőben futó szimuláció. Nem indít pénzügyi tranzakciót. Válts belső nézetre a modulok élő telemetriájához!</p>
+      </section>
+
+      <section class="card" id="scnCard">
+        <h4>Forgatókönyv Tesztelő</h4>
+        <div id="scn"></div>
+      </section>
+
+      <div id="frontSide" class="side">
+        <section class="card">
+          <h4>Vásárlási folyamat</h4>
+          <ol class="steps" id="steps"></ol>
+        </section>
+        <section class="card">
+          <h4>Kinyomtatott demójegy</h4>
+          <div id="ticketBox"></div>
+        </section>
+      </div>
+
+      <div id="insideSide" class="side hide">
+        <section class="card">
+          <h4>Kijelölt Modul Telemetriája</h4>
+          <div id="detail"></div>
+        </section>
+        <section class="card">
+          <h4>Hibainjektálási Panel</h4>
+          <div class="faults" id="faults"></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <h4>Eseménynapló (Real-time Log)</h4>
+        <ol class="log" id="log"></ol>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<footer class="wrap demo-footer">TICKET+ STUDIO · INTERAKTÍV SZIMULÁCIÓ<br>Generált menetrend, fiktív demóárak és szimulált telemetria. Nem hivatalos vasúti jegyértékesítő rendszer. A díszítő kód nem utazásra használható QR-kód.</footer><div class="toast hide" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+var $=function(s){return document.querySelector(s);};
+var nb=function(n){return Math.round(n).toLocaleString('hu-HU');};
+var fmt=function(n){return nb(n)+' Ft';};
+var tm=function(d){return d.toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'});};
+var tms=function(d){return d.toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit',second:'2-digit'});};
+var r10=function(n){return Math.round(n/10)*10;};
+var rnd=function(a,b){return a+Math.random()*(b-a);};
+var clamp=function(v,a,b){return Math.max(a,Math.min(b,v));};
+var sm=function(a,b,k){return a+(b-a)*k;};
+
+var ST=[{n:'Budapest-Nyugati',km:0},{n:'Újpest',km:8},{n:'Dunakeszi',km:17},{n:'Göd',km:24},{n:'Vác',km:34},{n:'Szob',km:57}];
+
+var LG={
+hu:{demo:'DEMÓ · nincs valódi tranzakció',start:'Jegyvásárlás',tag:'Egyszerű. Gyors. Többnyelvű.',touch:'Érintse meg a kezdéshez',route_h:'Útvonal',from:'Honnan',to:'Hová',swap:'↕ Csere',base:'alapár',next:'Tovább',back:'Vissza',dep_h:'Válasszon indulást',pl:'. vágány',min:'perc',fare_h:'Jegytípus és utasok',single:'Egyszeri',ret:'Oda-vissza',c2:'2. osztály',c1:'1. osztály',adult:'Felnőtt',disc:'Diák / nyugdíjas −50%',child:'Gyermek 0–6 év',free:'ingyenes',cart_h:'Összegzés',total:'Fizetendő',pay_card:'Bankkártya / mobil',pay_cash:'Készpénz',na:'Nem elérhető',card_h:'Érintse a kártyát',card_sub:'Tartsa a kártyát vagy a telefont az olvasóhoz.',card_btn:'Demó érintés',proc:'Feldolgozás…',appr:'Jóváhagyva · demó',cash_h:'Helyezzen be bankjegyet',paid:'Befizetve',rem:'Hátralévő',chg:'Visszajáró',dbills:'Demó bankjegyek',print_h:'Jegy nyomtatása…',print_sub:'Kérjük, várjon.',done_h:'Köszönjük!',done_sub:'Vegye ki a jegyet a nyílásból.',nw:'Új vásárlás',oos:'Üzemen kívül',oos_sub:'Az automata átmenetileg nem használható.',help_h:'Segítség',help_b:'1. Válassza ki az útvonalat. 2. Válasszon indulást. 3. Állítsa be az utasokat. 4. Fizessen kártyával vagy készpénzzel.',close:'Bezár',dir_s:'Szob felé',dir_b:'Budapest felé',unavail:'A kiválasztott fizetési mód nem elérhető.'},
+en:{demo:'DEMO · no real transaction',start:'Buy a ticket',tag:'Simple. Fast. Multilingual.',touch:'Touch to start',route_h:'Route',from:'From',to:'To',swap:'↕ Swap',base:'base fare',next:'Next',back:'Back',dep_h:'Choose departure',pl:' platform',min:'min',fare_h:'Ticket type & passengers',single:'Single',ret:'Return',c2:'2nd class',c1:'1st class',adult:'Adult',disc:'Student / Senior −50%',child:'Child 0–6',free:'free',cart_h:'Summary',total:'To pay',pay_card:'Bank card / Mobile',pay_cash:'Cash',na:'Unavailable',card_h:'Tap your card',card_sub:'Hold your card or phone to the reader.',card_btn:'Demo tap',proc:'Processing…',appr:'Approved · demo',cash_h:'Insert banknotes',paid:'Paid',rem:'Remaining',chg:'Change',dbills:'Demo banknotes',print_h:'Printing ticket…',print_sub:'Please wait.',done_h:'Thank you!',done_sub:'Take your ticket from the slot.',nw:'New purchase',oos:'Out of service',oos_sub:'This machine is temporarily unavailable.',help_h:'Help',help_b:'1. Select route. 2. Choose departure. 3. Set passengers. 4. Pay by card or cash.',close:'Close',dir_s:'towards Szob',dir_b:'towards Budapest',unavail:'Payment method unavailable right now.'}
+};
+
+var S={view:'front',lang:'hu',step:'home',from:0,to:4,dep:0,ttype:'single',cls:2,pax:{a:1,d:0,c:0},pay:null,paid:0,change:0,phase:'wait',help:false,manualOos:false,mod:'pc',deps:[],ticket:null,notice:'',busyCash:false,taken:false,log:[]};
+var F={printer:false,network:false,cash:false,tamper:false,thermal:false,billjam:false,coinjam:false,payterm:false,eagle:false,sorter:false,hopjam:false};
+var V={cpu:53,load:18,rssi:-71,lat:38,traffic:42,paper:78,head:31,printed:214,volt:24,watt:112,batt:100,rpm:1750,inner:34,vib:2,cash:41,bills:380,coins:72};
+var SER={cpu:[],rssi:[],head:[],watt:[],rpm:[],vib:[],cash:[],nfc:[],bnr:[],eag:[],sort:[],pout:[],ccas:[],coin:[]};
+var T=0;
+var t=function(k){return LG[S.lang][k]||k;};
+var TX=0,COIN=[200,100,50,20,10],NOTE=[2000,1000,500],LED={coins:{200:30,100:40,50:40,20:50,10:60}};
+var DR={500:40,1000:30,2000:15},CAS={500:120,1000:90,2000:40,5000:25,10000:12,20000:6},CCAS={200:0,100:0,50:0,20:0,10:0};
+var HCAP=100,DCAP=80,CAPN=1000,CCAP=300,ESC=[],ESCC=[],PAY={tx:312,ok:'–'};
+
+function sumN(o){var s=0;for(var k in o)s+=o[k];return s;}
+function sumV(o){var s=0;for(var k in o)s+=o[k]*k;return s;}
+function casTotal(){return sumN(CAS);}
+function casValue(){return sumV(CAS);}
+function pctCas(){return Math.round(casTotal()/CAPN*1000)/10;}
+function resetCash(){
+  LED.coins={200:30,100:40,50:40,20:50,10:60};
+  DR={500:40,1000:30,2000:15};
+  CAS={500:120,1000:90,2000:40,5000:25,10000:12,20000:6};
+  CCAS={200:0,100:0,50:0,20:0,10:0};
+  ESC=[];ESCC=[];S.com=null;S.pout=null;
+  V.coins=Math.round(sumN(LED.coins)/(HCAP*COIN.length)*100);V.cash=pctCas();V.bills=380;V.coinsIn=1240;V.coinsRej=37;V.toHop=1180;V.toCas=60;V.paidOut=3410;
+  PAY.tx=312;PAY.ok='–';
+}
+function ledTotal(){var s=0;for(var k in LED.coins)s+=LED.coins[k]*k;return s;}
+function plan(a){
+  if(!Number.isSafeInteger(a)||a<0||a%10||a>1000000)return null;
+  if(a===0)return {n:{},c:{}};
+  var target=a/10,dp=new Array(target+1);dp[0]={cost:0,prev:null};
+  var denoms=[];
+  if(!F.billjam)NOTE.forEach(function(d){denoms.push({d:d,n:DR[d]||0,k:'n'});});
+  if(!F.coinjam)COIN.forEach(function(d){if(!(F.hopjam&&d===50))denoms.push({d:d,n:LED.coins[d]||0,k:'c'});});
+  denoms.forEach(function(x){
+    var left=Math.min(x.n,Math.floor(a/x.d)),part=1;
+    while(left>0){var n=Math.min(part,left),w=x.d/10*n;
+      for(var j=target;j>=w;j--){var prev=dp[j-w];if(prev&&(!dp[j]||prev.cost+n<dp[j].cost))dp[j]={cost:prev.cost+n,prev:prev,d:x.d,k:x.k,n:n};}
+      left-=n;part*=2;
+    }
+  });
+  if(!dp[target])return null;
+  var p={n:{},c:{}},node=dp[target];
+  while(node.prev){p[node.k][node.d]=(p[node.k][node.d]||0)+node.n;node=node.prev;}
+  return p;
+}
+function descPlan(p){var s=[],d;for(d in p.n)s.push(p.n[d]+'×'+nb(d)+' Ft');for(d in p.c)s.push(p.c[d]+'×'+d+' Ft');return s.join(' + ');}
+
+var CAPT=ledTotal();V.coins=Math.round(sumN(LED.coins)/(HCAP*COIN.length)*100);V.cash=pctCas();V.coinsIn=1240;V.coinsRej=37;V.toHop=1180;V.toCas=60;V.paidOut=3410;V.nfc=0;V.motor=12;V.eag=12;V.sort=8;V.pout=10;
+var sseed=Date.now()|0,VNOW=null;
+function sr(){sseed=(sseed+0x6D2B79F5)|0;var x=Math.imul(sseed^sseed>>>15,1|sseed);x=x+Math.imul(x^x>>>7,61|x)^x;return((x^x>>>14)>>>0)/4294967296;}
+function NOW(){return VNOW?new Date(VNOW):new Date();}
+
+/* ---------- Audio Synth (Web Audio API) ---------- */
+var ac=null,mute=false;
+function A(){if(mute)return null;try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();return ac;}catch(e){return null;}}
+function beep(f,d,ty,v,dl){var c=A();if(!c)return;var o=c.createOscillator(),g=c.createGain(),t0=c.currentTime+(dl||0);o.type=ty||'sine';o.frequency.value=f;g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(v||.05,t0+.005);g.gain.exponentialRampToValueAtTime(.0001,t0+(d||.08));o.connect(g);g.connect(c.destination);o.start(t0);o.stop(t0+(d||.08)+.03);}
+var snd={
+  key:function(){beep(1300,.04,'square',.02);},
+  ok:function(){beep(880,.1,'sine',.05);beep(1320,.16,'sine',.05,.1);},
+  err:function(){beep(220,.25,'sawtooth',.04);beep(165,.3,'sawtooth',.04,.22);},
+  bill:function(){beep(330,.12,'square',.02);beep(280,.12,'square',.02,.14);beep(240,.14,'square',.02,.28);},
+  coin:function(){beep(2400+rnd(0,300),.06,'triangle',.03);},
+  mot:function(){beep(rnd(90,140),.07,'square',.025);}
+};
+
+/* ---------- Business Logic Model ---------- */
+function km(){return Math.abs(ST[S.to].km-ST[S.from].km);}
+function basePrice(){return r10(250+km()*26);}
+function rows(){
+  var b=basePrice()*(S.cls===1?1.5:1)*(S.ttype==='return'?1.8:1),u=r10(b),h=r10(b/2),r=[];
+  if(S.pax.a)r.push({k:'adult',q:S.pax.a,u:u});
+  if(S.pax.d)r.push({k:'disc',q:S.pax.d,u:h});
+  if(S.pax.c)r.push({k:'child',q:S.pax.c,u:0});
+  return r;
+}
+function total(){return rows().reduce(function(s,l){return s+l.q*l.u;},0);}
+function genDeps(){
+  var d=NOW();d.setSeconds(0,0);d.setMinutes(Math.ceil((d.getMinutes()+1)/5)*5);var k=km();
+  S.deps=[4,21,38,60].map(function(o,i){
+    var dt=new Date(d.getTime()+o*60000),fast=i%2===1,dur=Math.round((8+k*1.1)*(fast?.82:1));
+    return{dt:dt,arr:new Date(dt.getTime()+dur*60000),dur:dur,fast:fast,pl:2+((i*3+S.from+S.to)%5),no:(fast?'G ':'Sz ')+(7000+i*13+k)};
+  });
+}
+function avail(){
+  var oos=S.manualOos||F.printer||F.tamper,code='E-100',txt=S.lang==='hu'?'Karbantartás':'Maintenance',sev='warn';
+  if(F.tamper){code='E-731';txt=S.lang==='hu'?'Szabotázs-riasztás':'Tamper alarm';sev='bad';}
+  else if(F.printer){code='E-402';txt=S.lang==='hu'?'Nyomtató elakadás':'Printer jam';sev='bad';}
+  return{
+    oos:oos,code:code,txt:txt,sev:sev,
+    card:!oos&&!F.network&&!F.payterm,
+    cash:!oos&&!F.cash&&!F.billjam&&casTotal()<CAPN,
+    coin:!oos&&!F.eagle&&!F.sorter&&sumN(CCAS)<CCAP
+  };
+}
+function log(m,l){S.log.unshift({t:new Date(),m:m,l:l||''});if(S.log.length>40)S.log.pop();}
+function toast(m){var e=$('#toast');e.textContent=m;e.classList.remove('hide');clearTimeout(toast.h);toast.h=setTimeout(function(){e.classList.add('hide');},1800);}
+
+/* ---------- Screen Rendering ---------- */
+function top(){return '<div class="stop"><span class="slogo">TICKET<b>+</b></span><span class="sdemo">'+t('demo')+'</span><span class="sclock" id="clk">'+tm(new Date())+'</span></div>';}
+function nav(back,next,label,dis){return '<div class="snav">'+(back?'<button class="btn ghostb" data-act="go" data-s="'+back+'">'+t('back')+'</button>':'')+(next?'<button class="btn pri" data-act="go" data-s="'+next+'"'+(dis?' disabled':'')+'>'+(label||t('next'))+'</button>':'')+'</div>';}
+
+function vHome(){return '<div class="smain"><div class="home"><h2>'+t('start')+'</h2><p>'+t('tag')+'</p><div class="feat"><span>'+t('feat_fast')+'</span><span>'+t('feat_pay')+'</span><span>'+t('feat_access')+'</span><span>'+t('feat_always')+'</span></div>'+languagePicker()+'<div class="touch">'+t('touch')+'</div></div></div><div class="snav"><button class="btn pri" data-act="go" data-s="route">'+t('start')+'</button></div>';}
+
+function vRoute(){
+  var c=function(sel,a){return ST.map(function(s,i){return '<button class="chip'+(i===sel?' on':'')+'" data-act="'+a+'" data-i="'+i+'">'+s.n+'</button>';}).join('');};
+  return '<div class="smain"><h3>'+t('route_h')+'</h3><div class="lbl">'+t('from')+'</div><div class="chips">'+c(S.from,'from')+'</div><button class="swap" data-act="swap">'+t('swap')+'</button><div class="lbl">'+t('to')+'</div><div class="chips">'+c(S.to,'to')+'</div><div class="info">'+km()+' km · '+t('base')+' '+fmt(basePrice())+'</div></div>'+nav('home','dep');
+}
+
+function vDep(){
+  var dir=ST[S.to].km>ST[S.from].km?t('dir_s'):t('dir_b');
+  return '<div class="smain"><h3>'+t('dep_h')+'</h3><div class="sub">'+ST[S.from].n+' → '+ST[S.to].n+'</div>'+S.deps.map(function(d,i){return '<button class="dep" data-act="dep" data-i="'+i+'"><span class="tm">'+tm(d.dt)+'</span><span class="mid"><b>'+d.no+(d.fast?'<span class="tagf">'+t('fast')+'</span>':'')+'</b>'+dir+'</span><span class="r">'+d.pl+t('pl')+'<br>'+d.dur+' '+t('min')+'</span></button>';}).join('')+'</div>'+nav('route');
+}
+
+function vFare(){
+  var r=rows(),b=basePrice()*(S.cls===1?1.5:1)*(S.ttype==='return'?1.8:1),u=r10(b),h=r10(b/2),ok=S.pax.a+S.pax.d>=1;
+  var st=function(k,n,sub){return '<div class="stp"><div class="n">'+n+'<small>'+sub+'</small></div><div class="ctr"><button data-act="pax" data-k="'+k+'" data-d="-1" aria-label="−">−</button><b>'+S.pax[k]+'</b><button data-act="pax" data-k="'+k+'" data-d="1" aria-label="+">+</button></div></div>';};
+  var seg=function(a,v,cur,l){return '<button data-act="'+a+'" data-v="'+v+'"'+(cur===v?' class="on"':'')+'>'+l+'</button>';};
+  return '<div class="smain"><h3>'+t('fare_h')+'</h3><div class="pill2">'+seg('tt','single',S.ttype,t('single'))+seg('tt','return',S.ttype,t('ret'))+'</div><div class="pill2">'+seg('cl','2',String(S.cls),t('c2'))+seg('cl','1',String(S.cls),t('c1'))+'</div>'+st('a',t('adult'),fmt(u))+st('d',t('disc'),fmt(h))+st('c',t('child'),t('free'))+'<div class="tot"><span>'+t('total')+'</span><b>'+fmt(total())+'</b></div></div>'+nav('dep','cart',null,!ok);
+}
+
+function vCart(av){
+  var d=S.deps[S.dep],lines=rows().map(function(l){return '<div class="ln"><span>'+l.q+' × '+t(l.k)+'</span><span>'+fmt(l.q*l.u)+'</span></div>';}).join('');
+  return '<div class="smain"><h3>'+t('cart_h')+'</h3>'+(S.notice?'<div class="notice">'+S.notice+'</div>':'')+'<div class="ln"><span>'+ST[S.from].n+' → '+ST[S.to].n+'</span><span>'+tm(d.dt)+'</span></div><div class="ln"><span>'+d.no+' · '+(S.ttype==='return'?t('ret'):t('single'))+' · '+(S.cls===1?t('c1'):t('c2'))+'</span><span></span></div>'+lines+'<div class="tot"><span>'+t('total')+'</span><b>'+fmt(total())+'</b></div>'+
+  '<button class="pm" data-act="pay" data-v="card"'+(av.card?'':' disabled')+'><span class="ic"></span><span>'+t('pay_card')+(av.card?'':'<small>'+t('na')+'</small>')+'</span></button><button class="pm" data-act="pay" data-v="cash"'+(av.cash||av.coin?'':' disabled')+'><span class="ic"></span><span>'+t('pay_cash')+(av.cash||av.coin?'':'<small>'+t('na')+'</small>')+'</span></button></div>'+nav('fare');
+}
+
+function vCard(){
+  var inner=S.phase==='wait'?'<div class="halo"><i></i></div><h3>'+t('card_h')+'</h3><div class="sub">'+t('card_sub')+'</div><div class="tot" style="margin:0;width:100%"><span>'+t('total')+'</span><b>'+fmt(total())+'</b></div><button class="btn pri" style="flex:none;width:100%" data-act="tap">'+t('card_btn')+'</button>':
+  S.phase==='proc'?'<div class="halo"><i></i></div><h3>'+t('proc')+'</h3>':'<div class="halo" style="animation:none"><i style="border-radius:3px;transform:rotate(45deg);width:16px;height:30px;border-width:0 4px 4px 0;margin-top:-6px"></i></div><h3>'+t('appr')+'</h3>';
+  return '<div class="smain"><div class="center">'+inner+'</div></div>'+(S.phase==='wait'?nav('cart'):'');
+}
+
+function vCash(){
+  var av=avail(),rem=Math.max(0,total()-S.paid);
+  var dis=function(v,ok){return (!ok||S.paid>=total()||(S.paid+v>total()&&!plan(S.paid+v-total())))?' disabled':'';};
+  var bl=[500,1000,2000,5000,10000,20000].map(function(v){return '<button data-act="bill" data-v="'+v+'"'+dis(v,av.cash)+'>'+nb(v)+' Ft</button>';}).join('');
+  var cl=[10,20,50,100,200].map(function(v){return '<button data-act="coin" data-v="'+v+'"'+dis(v,av.coin)+'>'+v+' Ft</button>';}).join('')+'<button data-act="coin" data-v="0"'+(av.coin&&S.paid<total()?'':' disabled')+'>'+t('unknown')+'</button>';
+  return '<div class="smain"><h3>'+t('cash_h')+'</h3>'+(F.coinjam?'<div class="notice">'+t('coin_unavailable')+'</div>':'')+'<div class="amt"><div><small>'+t('total')+'</small><b>'+fmt(total())+'</b></div><div><small>'+t('paid')+'</small><b>'+fmt(S.paid)+'</b></div><div><small>'+(S.change?t('chg'):t('rem'))+'</small><b>'+fmt(S.change?S.change:rem)+'</b></div></div><div class="lbl">'+t('bill_label')+'</div><div class="bills">'+bl+'</div><div class="lbl">'+t('coin_label')+'</div><div class="coins">'+cl+'</div></div>'+(S.paid>0||S.change?'':nav('cart'));
+}
+
+function vPrint(){return '<div class="smain"><div class="center"><h3>'+t('print_h')+'</h3><div class="sub">'+t('print_sub')+'</div><div class="prog"><i></i></div></div></div>';}
+function vDone(){return '<div class="smain"><div class="center"><div class="halo" style="animation:none"><i style="border-radius:3px;transform:rotate(45deg);width:16px;height:30px;border-width:0 4px 4px 0;margin-top:-6px"></i></div><h3>'+t('done_h')+'</h3><div class="sub">'+t('done_sub')+'</div></div></div><div class="snav"><button class="btn pri" data-act="new">'+t('nw')+'</button></div>';}
+function vOos(av){var c=av.sev==='bad'?'var(--bad)':'var(--warn)';return '<div class="oos" style="--c:'+c+'"><div class="warnx">!</div><h3>'+t('oos')+'</h3><div>'+t('oos_sub')+'</div><code>'+av.code+' · '+av.txt+'</code></div>';}
+
+function render(){
+  var av=avail(),scr=$('#screen'),h='';
+  if(av.oos&&!S.settled&&(S.step==='card'||S.step==='cash')){TX++;if(S.step==='cash'&&S.paid>0)refund();S.step='cart';S.phase='wait';}
+  if(av.oos&&S.step!=='print'&&S.step!=='done'&&!S.settled){h=top()+vOos(av);}
+  else{
+    if(!S.settled&&(S.step==='card'&&!av.card||S.step==='cash'&&((!av.cash&&S.paid>0)||!(av.cash||av.coin)))){if(S.step==='cash'&&S.paid>0)refund();TX++;S.busyCash=false;S.step='cart';S.phase='wait';S.notice=t('unavail');}
+    switch(S.step){
+      case 'home':h=vHome();break;
+      case 'route':h=vRoute();break;
+      case 'dep':h=vDep();break;
+      case 'fare':h=vFare();break;
+      case 'cart':h=vCart(av);break;
+      case 'card':h=vCard();break;
+      case 'cash':h=vCash();break;
+      case 'print':h=vPrint();break;
+      default:h=vDone();
+    }
+    h=top()+h;
+    if(S.help)h+='<div class="helpov"><h3>'+t('help_h')+'</h3><div class="sub" style="font-size:14px;line-height:1.5">'+t('help_b')+'</div><button class="btn pri" style="flex:none" data-act="help">'+t('close')+'</button></div>';
+  }
+  scr.innerHTML=h+'<div class="glass"></div>';
+}
+
+/* ---------- User Actions & Simulation Controller ---------- */
+function act(a,d){
+  snd.key();
+  switch(a){
+    case 'lang':S.lang=Object.keys(LG)[(Object.keys(LG).indexOf(S.lang)+1)%Object.keys(LG).length];break;
+    case 'setlang':if(LG[d.v])S.lang=d.v;break;
+    case 'from':{var i=+d.i;if(i===S.to)S.to=S.from;S.from=i;break;}
+    case 'to':{var j=+d.i;if(j===S.from)S.from=S.to;S.to=j;break;}
+    case 'swap':{var x=S.from;S.from=S.to;S.to=x;break;}
+    case 'go':S.notice='';S.step=d.s;if(d.s==='dep')genDeps();if(d.s==='route'&&S.step==='route')log('Vásárlás indult','');break;
+    case 'dep':S.dep=+d.i;S.step='fare';break;
+    case 'tt':S.ttype=d.v;break;
+    case 'cl':S.cls=+d.v;break;
+    case 'pax':{var k=d.k,dv=+d.d,n=S.pax[k]+dv,tot=S.pax.a+S.pax.d+S.pax.c;if(n<0||(dv>0&&tot>=6))break;S.pax[k]=n;break;}
+    case 'pay':TX++;S.notice='';S.pay=d.v;S.step=d.v;S.phase='wait';S.paid=0;S.change=0;log('Fizetési mód: '+(d.v==='card'?'bankkártya':'készpénz'),'');break;
+    case 'tap':tapCard();return;
+    case 'bill':insertBill(+d.v);return;
+    case 'coin':insertCoin(+d.v);return;
+    case 'new':reset();break;
+    case 'help':S.help=!S.help;break;
+  }
+  sync();
+}
+
+function reset(){
+  if(S.settled&&S.step!=='done')return;
+  S.settled=false;S.ticket=null;S.com=null;S.pout=null;
+  TX++;if(S.step==='cash'&&S.paid>0&&S.change===0)refund();
+  S.busyCash=false;S.step='home';S.paid=0;S.change=0;S.pay=null;S.phase='wait';S.notice='';S.help=false;S.pax={a:1,d:0,c:0};
+  $('#paper').className='paper';
+}
+function refund(){
+  var r=S.paid,nc=ESCC.length,none=!ESC.length&&!ESCC.length;S.paid=0;S.change=0;if(none)return;
+  if(nc)giveChange(0,Math.min(8,nc));ESC=[];ESCC=[];
+  if(r>0){toast('Visszaadott összeg: '+fmt(r));log('Befizetett összeg visszaadva: '+fmt(r),'warn');}
+}
+function backAct(){
+  var m={route:'home',dep:'route',fare:'dep',cart:'fare',card:'cart',cash:'cart'};
+  if(m[S.step]){if(S.step==='cash'&&S.paid>0)return;TX++;S.step=m[S.step];S.notice='';if(S.step==='dep')genDeps();}
+}
+
+function tapCard(){
+  var av=avail();if(S.step!=='card'||S.phase!=='wait'||!av.card)return;
+  S.phase='proc';var id=++TX,g=$('#ghost');g.classList.remove('tap');void g.offsetWidth;g.classList.add('tap');snd.ok();sync();
+  setTimeout(function(){
+    if(id!==TX||S.step!=='card'||!avail().card)return;
+    S.phase='ok';S.settled=true;snd.ok();PAY.tx++;PAY.ok='Jóváhagyva';
+    log('Kártyás fizetés jóváhagyva · '+fmt(total()),'ok');sync();
+    setTimeout(function(){if(id===TX&&S.step==='card')startPrint();},900);
+  },1500);
+}
+
+function insertBill(v){
+  var av=avail();if(S.step!=='cash'||!av.cash||S.busyCash||S.paid>=total()||[500,1000,2000,5000,10000,20000].indexOf(v)<0)return;
+  var over=S.paid+v-total();
+  if(over>0&&!plan(over)){
+    snd.err();toast(F.coinjam?'Érmekifizető-elakadás: visszajáró nem adható ki':'A visszajáró nem biztosítható: kisebb címletet adjon meg');
+    log('Bankjegy visszaadva (nincs fedezet a visszajáróra): '+fmt(v),'warn');renderLog();return;
+  }
+  var id=++TX;S.busyCash=true;S.busyKind='bill';updMods();
+  var b=document.createElement('div');b.className='bill';b.textContent=nb(v);$('#billfeed').appendChild(b);
+  setTimeout(function(){b.remove();},800);snd.bill();
+  setTimeout(function(){
+    S.busyCash=false;if(id!==TX||S.step!=='cash')return;
+    S.paid+=v;V.bills++;ESC.push(v);log('Bankjegy befogadva (BNR Recycler): '+fmt(v),'');
+    if(S.paid>=total())finishCash(id);else{snd.ok();sync();}
+  },750);
+}
+
+function insertCoin(v){
+  var av=avail();if(S.step!=='cash'||!av.coin||S.busyCash||S.paid>=total()||[0,10,20,50,100,200].indexOf(v)<0)return;
+  if(v===0){
+    snd.err();V.coinsRej++;toast('Eagle: Ismeretlen érme elutasítva');
+    log('Érme visszaadva (Eagle: érme nem azonosított)','warn');giveChange(0,1);renderLog();updMods();return;
+  }
+  var over=S.paid+v-total();
+  if(over>0&&!plan(over)){
+    snd.err();toast('A visszajáró nem biztosítható');
+    log('Érme visszaadva: '+fmt(v),'warn');giveChange(0,1);renderLog();return;
+  }
+  var id=++TX;S.busyCash=true;S.busyKind='coin';updMods();snd.coin();
+  setTimeout(function(){
+    S.busyCash=false;if(id!==TX||S.step!=='cash')return;
+    S.paid+=v;ESCC.push(v);V.coinsIn++;log('Érme befogadva (Eagle → Sorter): '+fmt(v),'');
+    if(S.paid>=total())finishCash(id);else{snd.ok();sync();}
+  },520);
+}
+
+function commitCash(){
+  var c={n:[],c:[]};
+  ESC.forEach(function(v){var dr=DR[v]!==undefined&&DR[v]<DCAP;if(dr)DR[v]++;else CAS[v]=(CAS[v]||0)+1;c.n.push({v:v,to:dr?'dr':'cas'});});
+  ESCC.forEach(function(v){var h=LED.coins[v]<HCAP;if(h){LED.coins[v]++;V.toHop++;}else{CCAS[v]++;V.toCas++;}c.c.push({v:v,to:h?'hop':'ccas'});});
+  S.com=c;ESC=[];ESCC=[];V.cash=pctCas();V.coins=Math.round(sumN(LED.coins)/(HCAP*COIN.length)*100);
+}
+function payoutDo(p){for(var d in p.n)DR[d]-=p.n[d];for(var c in p.c){LED.coins[c]-=p.c[c];V.paidOut+=p.c[c];}V.coins=Math.round(sumN(LED.coins)/(HCAP*COIN.length)*100);}
+function undoCash(){
+  var c=S.com,p=S.pout;
+  if(c){
+    c.n.forEach(function(x){if(x.to==='dr')DR[x.v]=Math.max(0,DR[x.v]-1);else CAS[x.v]=Math.max(0,(CAS[x.v]||1)-1);});
+    c.c.forEach(function(x){if(x.to==='hop')LED.coins[x.v]=Math.max(0,LED.coins[x.v]-1);else CCAS[x.v]=Math.max(0,CCAS[x.v]-1);});
+  }
+  if(p){for(var d in p.n)DR[d]+=p.n[d];for(var e in p.c)LED.coins[e]+=p.c[e];}
+  S.com=null;S.pout=null;V.cash=pctCas();V.coins=Math.round(sumN(LED.coins)/(HCAP*COIN.length)*100);
+}
+
+function giveChange(a,n0){
+  var n=n0||Math.min(8,Math.max(2,Math.round(a/500)||2)),tr=$('#tray');
+  for(var i=0;i<n;i++)(function(i){
+    setTimeout(function(){
+      var c=document.createElement('span');c.className='coin';c.style.left=(14+Math.random()*(tr.clientWidth-40))+'px';
+      tr.appendChild(c);snd.coin();setTimeout(function(){c.remove();},700);
+    },i*130);
+  })(i);
+}
+
+function finishCash(id){
+  var ch=S.paid-total(),pl=plan(ch);
+  if(!pl){log('Visszajáró nem biztosítható, tranzakció nem könyvelhető','bad');refund();sync();return;}
+  var projectedCas=casTotal(),projectedCoinCas=sumN(CCAS),dr=Object.assign({},DR),hc=Object.assign({},LED.coins);
+  ESC.forEach(function(d){if(dr[d]!==undefined&&dr[d]<DCAP)dr[d]++;else projectedCas++;});
+  ESCC.forEach(function(d){if(hc[d]<HCAP)hc[d]++;else projectedCoinCas++;});
+  if(projectedCas>CAPN||projectedCoinCas>CCAP){refund();toast('Demókapacitás túllépve: befizetés visszaadva');sync();return;}
+  commitCash();S.settled=true;S.change=ch;S.pout=pl;
+  if(ch>0){payoutDo(pl);giveChange(ch);}
+  snd.ok();log('Készpénzes fizetés kész'+(ch>0?' · visszajáró '+fmt(ch)+' ('+descPlan(pl)+')':''),'ok');
+  sync();setTimeout(function(){if(id===TX&&S.step==='cash')startPrint();},ch>0?1800:800);
+}
+
+function startPrint(){
+  S.ticket={id:'DEMO-'+(100000+Math.floor(sr()*899999)),from:ST[S.from].n,to:ST[S.to].n,dep:S.deps[S.dep],ttype:S.ttype,cls:S.cls,rows:rows(),total:total(),pay:S.pay,at:NOW()};
+  if(S.pay!=='cash'){S.com=null;S.pout=null;}
+  if(F.printer||V.paper<=0){if(S.pay==='cash')undoCash();S.settled=false;S.ticket=null;S.paid=0;S.change=0;S.step='home';log('Nyomtatás nem indítható: demótranzakció visszavonva','bad');sync();return;}
+  var printMs=F.psu_drop?5000:2500;document.documentElement.style.setProperty('--print-duration',printMs+'ms');
+  var id=++TX;S.step='print';S.taken=false;S.notice='';fillPaper();log('Jegynyomtatás indult','');sync();
+  var p=$('#paper');p.className='paper';void p.offsetWidth;p.className='paper out';
+  var n=0,iv=setInterval(function(){if(id!==TX){clearInterval(iv);return;}snd.mot();if(++n>=14)clearInterval(iv);},170);
+  setTimeout(function(){
+    if(id!==TX||S.step!=='print')return;
+    S.step='done';V.printed++;V.paper=Math.max(0,V.paper-.6);snd.ok();log('Demójegy kiadva · '+S.ticket.id,'ok');sync();
+  },printMs);
+}
+
+function fillPaper(){
+  var k=S.ticket;$('#paper').innerHTML='<b>TICKET+</b>'+k.from+'<br>→ '+k.to+'<br>'+tm(k.dep.dt)+' · '+k.dep.no+'<br>'+fmt(k.total)+'<em>DEMÓ</em>';
+}
+$('#paper').addEventListener('click',function(){
+  if(S.step==='done'&&!S.taken){S.taken=true;this.classList.add('take');snd.key();log('Jegy kivéve a nyílásból','');sync();}
+});
+
+/* ---------- Side Panels & Telemetry ---------- */
+function qr(id){
+  var s=0,i,x,y,r='';for(i=0;i<id.length;i++)s=(s*31+id.charCodeAt(i))>>>0;
+  for(y=0;y<15;y++)for(x=0;x<15;x++){s=(s*1664525+1013904223)>>>0;if((s>>>27)&1)r+='<rect x="'+x+'" y="'+y+'" width="1" height="1"/>';}
+  return '<svg viewBox="0 0 15 15" role="img" aria-label="Demó kód">'+r+'</svg>';
+}
+function ticketText(k){
+  return ['TICKET+ DEMÓJEGY',k.from+' -> '+k.to,k.dep.dt.toLocaleDateString('hu-HU')+' '+tm(k.dep.dt)+' · '+k.dep.no,(k.ttype==='return'?'Oda-vissza':'Egyszeri')+' · '+k.cls+'. osztály','Összesen: '+fmt(k.total),k.id].join('\n');
+}
+function renderTicket(){
+  var k=S.ticket,b=$('#ticketBox');
+  if(!k){b.innerHTML='<div class="empty">Itt jelenik meg a kinyomtatott demójegy.</div>';return;}
+  b.innerHTML='<div class="ticket"><div class="hd"><b>TICKET+</b><span>DEMÓ</span></div><div class="rt">'+k.from+'<br>→ '+k.to+'</div><div class="kv"><span>Indulás</span><span>'+k.dep.dt.toLocaleDateString('hu-HU')+' '+tm(k.dep.dt)+'</span></div><div class="kv"><span>Vonat</span><span>'+k.dep.no+' · '+k.dep.pl+'. vágány</span></div><div class="kv"><span>Típus</span><span>'+(k.ttype==='return'?'Oda-vissza':'Egyszeri')+' · '+k.cls+'. oszt.</span></div>'+k.rows.map(function(l){return '<div class="kv"><span>'+l.q+' × '+({adult:'Felnőtt',disc:'Diák/nyugd.',child:'Gyermek'})[l.k]+'</span><span>'+fmt(l.q*l.u)+'</span></div>';}).join('')+'<div class="kv sum"><span>Összesen</span><span>'+fmt(k.total)+'</span></div><div class="kv"><span>Fizetés</span><span>'+(k.pay==='card'?'Kártya':'Készpénz')+'</span></div>'+qr(k.id)+'<div class="fine">'+k.id+'<br>DEMÓ: nem érvényes menetjegy.</div></div><button class="btn2" data-copy="1">Jegyadatok másolása</button>';
+}
+function renderSteps(){
+  var map={route:0,dep:1,fare:2,cart:3,card:3,cash:3,print:4,done:4},cur=S.step==='home'?-1:map[S.step],names=['Útvonal','Indulás','Jegytípus és utasok','Fizetés','Nyomtatás'];
+  $('#steps').innerHTML=names.map(function(n,i){var c=i<cur||S.step==='done'?'done':i===cur?'on':'';return '<li class="'+c+'"><i>'+(c==='done'?'✓':i+1)+'</i>'+n+'</li>';}).join('');
+}
+function renderLog(){
+  $('#log').innerHTML=S.log.slice(0,8).map(function(e){return '<li class="'+e.l+'"><span>'+tms(e.t)+'</span><span>'+e.m+'</span></li>';}).join('');
+}
+
+/* ---------- Hardware Modules Definition (Matches 3D Render) ---------- */
+var MODS=[
+  {id:'pc',n:'Ipari Számítógép',s:'top-left · vezérlés & OS',cat:'service'},
+  {id:'net',n:'Hálózati Modul',s:'4G / 5G / Ethernet',cat:'service'},
+  {id:'psu',n:'Tápegység · PSU',s:'24 V / 12 V · szimulált tápsín',cat:'service'},
+  {id:'thermal_mgmt',n:'Hőmenedzsment',s:'Ventilátor & belső hőmérséklet',cat:'service'},
+  {id:'printer',n:'Termál Nyomtató',s:'mid-left · tekercs & vágó',cat:'service'},
+  {id:'pay',n:'Fizetési Terminál',s:'mid-center · NFC & EMV',cat:'service'},
+  {id:'eagle',n:'Eagle & Sorter Egység',s:'mid-right · érmeválogató',cat:'coin'},
+  {id:'bnr',n:'BNR Bankjegykezelő',s:'lower-left · recycler & optical',cat:'money'},
+  {id:'billcas',n:'Bankjegykazetta',s:'bottom-left · lezárt trezor',cat:'money'},
+  {id:'hoppers',n:'5 címletezett hopper',s:'10 / 20 / 50 / 100 / 200 Ft',cat:'coin'},
+  {id:'payout',n:'Érmekifizető & Kazetta',s:'bottom-right · adagoló csatorna',cat:'coin'}
+];
+
+var ACT={
+  pay:function(){return S.step==='card';},
+  bnr:function(){return S.step==='cash'&&S.busyCash&&S.busyKind==='bill';},
+  eagle:function(){return S.step==='cash'&&S.busyCash&&S.busyKind==='coin';},
+  sorter:function(){return S.step==='cash'&&S.busyCash&&S.busyKind==='coin';},
+  hoppers:function(){return S.step==='cash'&&S.change>0;},
+  payout:function(){return S.step==='cash'&&S.change>0;},
+  billcas:function(){return S.step==='print'&&S.pay==='cash';},
+  printer:function(){return S.step==='print';}
+};
+
+/* SVG Technical Visual Renderers for Inner Modules */
+function getHwSvg(id){
+  switch(id){
+    case 'pc': return '<svg class="hw-cutaway-svg" viewBox="0 0 160 38"><rect x="10" y="6" width="140" height="26" rx="3" fill="#121a22" stroke="#2c3a48"/><g class="fan" id="fanG"><circle cx="34" cy="19" r="9" fill="#1a2430" stroke="#38495a"/><path d="M34 10v18M25 19h18M28 13l12 12M28 25l12-12" stroke="#38d6ff" stroke-width="1.5"/></g><rect x="60" y="12" width="30" height="4" rx="1" fill="#9be34a"/><rect x="60" y="20" width="50" height="4" rx="1" fill="#203040"/><circle cx="135" cy="19" r="3" fill="#38d6ff"/></svg>';
+    case 'net': return '<svg class="hw-cutaway-svg" viewBox="0 0 160 38"><rect x="8" y="6" width="65" height="26" rx="3" fill="#121a22" stroke="#2c3a48"/><rect x="82" y="6" width="70" height="26" rx="3" fill="#15202b" stroke="#2c3a48"/><circle cx="22" cy="19" r="2.5" fill="#9be34a"/><circle cx="32" cy="19" r="2.5" fill="#9be34a"/><circle cx="42" cy="19" r="2.5" fill="#f3b134"/><path d="M100 13h34M100 21h20" stroke="#38d6ff" stroke-width="2"/></svg>';
+    case 'printer': return '<svg class="hw-cutaway-svg" viewBox="0 0 160 38"><rect x="15" y="8" width="40" height="22" rx="2" fill="#2a3644" stroke="#455668"/><circle cx="85" cy="19" r="11" fill="#e2ebf2" stroke="#a0b2c6"/><path d="M96 19h45" stroke="#e2ebf2" stroke-width="3" stroke-dasharray="3 2"/></svg>';
+    case 'pay': return '<svg class="hw-cutaway-svg" viewBox="0 0 160 38"><rect x="45" y="5" width="70" height="28" rx="4" fill="#121820" stroke="#38d6ff"/><circle cx="80" cy="19" r="8" fill="none" stroke="#9be34a" stroke-width="1.5"/><path d="M76 19l3 3 5-5" stroke="#9be34a" stroke-width="1.5"/></svg>';
+    case 'eagle': return '<svg class="hw-cutaway-svg" viewBox="0 0 160 38"><circle cx="40" cy="19" r="11" fill="#1a2532" stroke="#f3b134" stroke-width="2"/><path d="M40 10v18M31 19h18" stroke="#f3b134"/><path d="M60 12l40 14h45" fill="none" stroke="#48596b" stroke-width="2.5"/><circle cx="75" cy="17" r="4" fill="#f0cf65"/></svg>';
+    case 'bnr': return '<svg class="hw-cutaway-svg" viewBox="0 0 160 38"><rect x="10" y="6" width="140" height="26" rx="3" fill="#141c24" stroke="#2e3d4c"/><circle cx="35" cy="19" r="7" fill="#253444" stroke="#9be34a"/><circle cx="60" cy="19" r="7" fill="#253444" stroke="#9be34a"/><rect x="80" y="14" width="60" height="10" rx="2" fill="#1e2b38" stroke="#38d6ff"/></svg>';
+    case 'billcas': return '<svg class="hw-cutaway-svg" viewBox="0 0 160 38"><rect x="10" y="5" width="140" height="28" rx="3" fill="#0d1218" stroke="#283442"/><rect x="25" y="12" width="110" height="14" rx="2" fill="#17222d" stroke="#364758"/><path d="M30 19h100" stroke="#9be34a" stroke-dasharray="6 4"/></svg>';
+    case 'hoppers': return '<svg class="hw-cutaway-svg" viewBox="0 0 160 38"><rect x="12" y="6" width="28" height="26" rx="3" fill="#16202a" stroke="#f3b134"/><rect x="48" y="6" width="28" height="26" rx="3" fill="#16202a" stroke="#f3b134"/><rect x="84" y="6" width="28" height="26" rx="3" fill="#16202a" stroke="#f3b134"/><rect x="120" y="6" width="28" height="26" rx="3" fill="#16202a" stroke="#f3b134"/></svg>';
+    case 'payout': return '<svg class="hw-cutaway-svg" viewBox="0 0 160 38"><path d="M20 8h50l30 20h40" fill="none" stroke="#38495a" stroke-width="3"/><circle cx="120" cy="24" r="4" fill="#f0cf65"/><circle cx="132" cy="24" r="4" fill="#f0cf65"/></svg>';
+    default: return '';
+  }
+}
+
+function dat(id){
+  var th=F.thermal;
+  switch(id){
+    case 'pc':return{k:'cpu',l:'CPU Hőmérséklet & Terhelés',v:V.cpu.toFixed(0)+' °C',st:th?'warn':'ok',r:[['Terhelés',V.load.toFixed(0)+' %'],['Memória','42 %'],['Szoftver','TICKET+ OS v4.8']]};
+    case 'net':return{k:'rssi',l:'Hálózati Jelerősség & Táp',v:F.network?'OFFLINE':V.rssi.toFixed(0)+' dBm',st:F.network?'bad':'ok',r:[['Kapcsolat',F.network?'Megszakadt':'5G + Ethernet'],['Feszültség',V.volt.toFixed(1)+' V'],['UPS Akku',V.batt+' %']]};
+    case 'printer':return{k:'head',l:'Nyomtatófej Hőfok',v:F.printer?'ELAKADÁS':V.head.toFixed(0)+' °C',st:F.printer?'bad':'ok',r:[['Papírtekercs',V.paper.toFixed(0)+' %'],['Nyomtatva',nb(V.printed)+' db'],['Vágóegység','Rendben']]};
+    case 'pay':return{k:'nfc',l:'NFC Mező & Terminál',v:F.payterm?'HIBA':(S.step==='card'&&!F.network)?'AKTÍV':'KÉSZENLÉT',st:F.payterm?'bad':'ok',r:[['NFC Mező',F.payterm?'Ki':'Aktív'],['Tranzakciók',nb(PAY.tx)+' db'],['Utolsó status',PAY.ok]]};
+    case 'eagle':return{k:'eag',l:'Eagle & Sorter Érmeérzékelő',v:F.eagle?'HIBA':(F.sorter?'ELAKADÁS':'ÜZEMKÉSZ'),st:(F.eagle||F.sorter)?'bad':'ok',r:[['Befogadott érme',nb(V.coinsIn)+' db'],['Elutasított',nb(V.coinsRej)+' db'],['Sorter terelő','Rendben']]};
+    case 'bnr':return{k:'bnr',l:'BNR Bankjegy Recycler Motor',v:F.billjam?'ELAKADÁS':ESC.length?ESC.length+' db escrow':'ÜZEMKÉSZ',st:F.billjam?'bad':'ok',r:[['Escrow',ESC.length+' db · '+fmt(ESC.reduce(function(a,b){return a+b;},0))],['Vissaforgató dobok',sumN(DR)+' db'],['Befogadott bankjegy',nb(V.bills)+' db']]};
+    case 'billcas':return{k:'cash',l:'Bankjegykazetta Töltöttség',v:V.cash.toFixed(0)+' %',st:V.cash>85?'warn':'ok',r:[['Bankjegyek',nb(casTotal())+' / '+nb(CAPN)+' db'],['Összérték',fmt(casValue())],['Trezor zár','Zárva']]};
+    case 'hoppers':return{k:'coin',l:'Hopperek Össztöltöttsége',v:V.coins+' %',st:F.hopjam?'bad':V.coins<20?'warn':'ok',r:[['50 Ft Hopper',F.hopjam?'ELAKADT':LED.coins[50]+' db'],['200 Ft Hopper',LED.coins[200]+' db'],['Érmekészlet érték',fmt(ledTotal())]]};
+    case 'payout':return{k:'pout',l:'Érmekifizető Adagoló Motor',v:F.coinjam?'ELAKADÁS':'ÜZEMKÉSZ',st:F.coinjam?'bad':'ok',r:[['Kiadott érme',nb(V.paidOut)+' db'],['Utolsó visszajáró',S.change?fmt(S.change):'–'],['Érmekazetta',sumN(CCAS)+' db']]};
+    default:return{k:'cpu',l:'Modul Status',v:'OK',st:'ok',r:[]};
+  }
+}
+
+var FL=[
+  ['printer','Nyomtató elakadás','E-402 · üzemen kívül'],
+  ['network','Hálózati kimaradás','E-215 · kártyás fizetés letiltva'],
+  ['payterm','Fizetési terminál hiba','E-250 · kártyás fizetés letiltva'],
+  ['cash','Bankjegykazetta tele','E-318 · bankjegy letiltva'],
+  ['tamper','Szabotázs-riasztás','E-731 · üzemen kívül'],
+  ['billjam','BNR bankjegy-elakadás','E-321 · bankjegy letiltva'],
+  ['eagle','Eagle érmeelfogadó hiba','E-330 · érmebefogadás letiltva'],
+  ['sorter','Sorter elakadás','E-331 · érmebefogadás letiltva'],
+  ['hopjam','50 Ft hopper elakadás','E-340 · 50 Ft nem adható vissza'],
+  ['coinjam','Érmekifizető elakadás','E-322 · érmés visszajáró letiltva'],
+  ['thermal','Túlmelegedés','W-120 · ventilátor felpörög']
+];
+
+function buildMods(){
+  $('#mods').innerHTML=MODS.map(function(m){
+    var catClass='hw-'+m.cat;
+    return '<button class="unit '+catClass+'" data-mod="'+m.id+'" aria-pressed="'+(S.mod===m.id)+'"><svg viewBox="0 0 48 48" aria-hidden="true">'+IC[m.id]+'</svg><span class="nm">'+m.n+'<small>'+m.s+'</small></span>'+getHwSvg(m.id)+'<span class="ft"><i class="sl"></i><span class="mv"></span></span><span class="bar na"><i></i></span></button>';
+  }).join('');
+}
+
+function renderHardwareInventory(){
+  var box=$('#hwInventory');if(!box)return;
+  box.innerHTML=COIN.map(function(d){
+    var n=LED.coins[d],low=n<10;
+    return '<div class="hw-denom'+(low?' low':'')+'"><b>'+d+' Ft</b><small>'+n+' db</small><div class="hw-meter"><i style="width:'+Math.min(100,n/HCAP*100)+'%"></i></div></div>';
+  }).join('');
+  $('#hwInventoryTotal').textContent=fmt(ledTotal());
+}
+
+function updMods(){
+  MODS.forEach(function(m){
+    var b=document.querySelector('[data-mod="'+m.id+'"]');if(!b)return;
+    var d=dat(m.id);
+    b.querySelector('.mv').textContent=d.v;
+    b.querySelector('.sl').className='sl '+(d.st==='ok'?'':d.st);
+    b.setAttribute('aria-pressed',S.mod===m.id);
+    b.classList.toggle('act',!!(ACT[m.id]&&ACT[m.id]()));
+  });
+  var fg=$('#fanG');if(fg)fg.style.setProperty('--sp',(60/Math.max(600,V.rpm)*1.6).toFixed(2)+'s');
+}
+
+function spark(a){
+  if(a.length<2)return '';
+  var mn=Math.min.apply(null,a),mx=Math.max.apply(null,a),pad=(mx-mn)||1,pts=a.map(function(v,i){return (i/39*200).toFixed(1)+','+(50-((v-mn)/pad)*42).toFixed(1);}),last=pts[pts.length-1].split(',');
+  return '<svg class="spark" viewBox="0 0 200 55" preserveAspectRatio="none"><line x1="0" y1="14" x2="200" y2="14" stroke="#222c38" stroke-width=".6"/><polyline points="'+pts.join(' ')+'" fill="none" stroke="#9be34a" stroke-width="1.6"/><circle cx="'+last[0]+'" cy="'+last[1]+'" r="2.5" fill="#9be34a"/></svg>';
+}
+
+function renderDetail(){
+  var m=MODS.filter(function(x){return x.id===S.mod;})[0],d=dat(m.id),lab={ok:'ÜZEMKÉSZ',warn:'FIGYELMEZTETÉS',bad:'HIBA'}[d.st];
+  $('#detail').innerHTML='<div class="dhead"><b>'+m.n+'</b><span class="pill '+(d.st==='ok'?'':d.st)+'">'+lab+'</span></div><div class="sub" style="color:var(--mute);font-size:12px">'+d.l+'</div>'+spark(SER[d.k])+'<div class="kvs">'+d.r.map(function(r){return '<div><small>'+r[0]+'</small><b>'+r[1]+'</b></div>';}).join('')+'</div>';
+}
+
+function renderFaults(){
+  $('#faults').innerHTML=FL.map(function(f){
+    return '<button class="fault" role="switch" aria-checked="'+F[f[0]]+'" data-fault="'+f[0]+'"><span>'+f[1]+'<small>'+f[2]+'</small></span><span class="sw"></span></button>';
+  }).join('');
+}
+
+function tick(){
+  T++;var th=F.thermal;
+  V.cpu=sm(V.cpu,(th?83:53)+Math.sin(T/5)*2,.25);V.load=clamp(sm(V.load,S.step==='home'?18:34,.3)+rnd(-2,2),8,90);
+  V.inner=sm(V.inner,th?58:34,.1);V.rpm=sm(V.rpm,th?3400:1750,.18)+rnd(-12,12);
+  V.rssi=-71+rnd(-2,2);V.lat=F.network?null:38+rnd(-6,9);V.traffic=sm(V.traffic,S.step==='home'?12:48,.3)+rnd(-3,3);
+  V.head=sm(V.head,S.step==='print'?58:31,.3)+rnd(-.2,.2);V.watt=sm(V.watt,S.step==='print'?148:112,.3)+rnd(-2,2);V.volt=F.psu_drop?20.4+rnd(-.3,.3):24+rnd(-.08,.08);V.rail12=F.psu_drop?10.6:12;V.ram=clamp(sm(V.ram||42,S.step==='home'?41:48,.15)+rnd(-.4,.4),20,90);
+  V.nfc=clamp(sm(V.nfc,(S.step==='card'&&!F.payterm)?420:0,.5)+rnd(-8,8),0,999);
+  V.motor=F.billjam?480+rnd(-20,20):S.busyCash&&S.busyKind==='bill'?210+rnd(-10,10):12+rnd(-2,2);
+  V.eag=F.eagle?0:clamp(sm(V.eag,S.busyCash&&S.busyKind==='coin'?300:12,.4)+rnd(-4,4),0,999);
+  V.sort=F.sorter?460+rnd(-15,15):S.busyCash&&S.busyKind==='coin'?180+rnd(-8,8):8+rnd(-1,1);
+  V.pout=F.coinjam?420+rnd(-20,20):(S.change>0&&S.step==='cash')?260+rnd(-10,10):10+rnd(-1,1);
+
+  [['cpu',V.cpu],['rssi',F.network?-120:V.rssi],['head',V.head],['watt',V.watt],['nfc',V.nfc],['bnr',V.motor],['eag',V.eag],['sort',V.sort],['pout',V.pout],['cash',V.cash+rnd(-.2,.2)],['coin',V.coins]].forEach(function(p){
+    var a=SER[p[0]];a.push(p[1]);if(a.length>40)a.shift();
+  });
+
+  var c=$('#clk');if(c)c.textContent=tm(new Date());
+  sampleDashboard();updMods();if(S.view==='inside'){renderDetail();renderHardwareInventory();renderVisualHoppers();renderDashboard();}
+}
+
+function seed(){
+  for(var i=0;i<40;i++){
+    SER.cpu.push(53+Math.sin(i/5)*2+rnd(-1,1));SER.rssi.push(-71+rnd(-2,2));
+    SER.head.push(31+rnd(-.3,.3));SER.watt.push(112+rnd(-2,2));SER.nfc.push(rnd(0,8));
+    SER.bnr.push(12+rnd(-2,2));SER.eag.push(12+rnd(-4,4));SER.sort.push(8+rnd(-1,1));
+    SER.pout.push(10+rnd(-1,1));SER.cash.push(V.cash+rnd(-.2,.2));SER.coin.push(V.coins);
+  }
+}
+
+/* ---------- Sync & UI Updates ---------- */
+function sync(){
+  var av=avail(),cab=$('#cab'),busy=S.step==='print'||(S.step==='card'&&S.phase==='proc');
+  var col='var(--led)';
+  if(av.oos)col=av.sev==='bad'?'var(--bad)':'var(--warn)';
+  else if(busy)col='var(--cyan)';
+  else if(F.psu_drop||F.network||F.cash||F.thermal||F.billjam||F.coinjam||F.payterm||F.eagle||F.sorter||F.hopjam)col='var(--warn)';
+
+  cab.style.setProperty('--ledc',col);cab.dataset.busy=busy?'1':'0';cab.dataset.oos=av.oos?'1':'0';cab.dataset.done=S.step==='done'&&!S.taken?'1':'0';
+
+  $('#pad').className='pad'+(av.card?(S.step==='card'&&S.phase==='wait'?' live':''):' dead');
+  $('#billbox').className='billbox'+(av.cash?(S.step==='cash'?' live':''):' dead')+(F.billjam?' jam':'');
+  $('#cslot').className='cslot'+(av.coin?(S.step==='cash'?' live':''):' dead');
+
+  var open=S.view==='inside';cab.classList.toggle('open',open);
+  $('#door').inert=open;$('#inside').inert=!open;
+
+  $('#frontSide').classList.toggle('hide',open);
+  $('#insideSide').classList.toggle('hide',!open);
+
+  document.querySelectorAll('#segView button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.view===S.view));});
+  document.querySelectorAll('#segMode button').forEach(function(b){b.setAttribute('aria-pressed',String((b.dataset.oos==='1')===S.manualOos));});
+
+  document.querySelector('[data-key="help"]').classList.toggle('lit',S.help);
+  document.querySelector('[data-key="lang"]').classList.add('lit');
+
+  document.body.dataset.view=S.view;$('#floatingDashboard').classList.toggle('hide',!open);
+  document.querySelector('[data-key="lang"]').textContent=S.lang.toUpperCase()+' / 🌐';
+  render();renderSteps();renderTicket();renderLog();renderFaults();updMods();renderDetail();renderHardwareInventory();renderVisualHoppers();renderDashboard();
+}
+
+/* ---------- Event Listeners ---------- */
+$('#screen').addEventListener('click',function(e){var b=e.target.closest('[data-act]');if(!b||b.disabled)return;act(b.dataset.act,b.dataset);});
+$('#keys').addEventListener('click',function(e){var b=e.target.closest('[data-key]');if(!b)return;press(b);});
+document.querySelector('.round').addEventListener('click',function(){press(this);});
+
+function press(b){
+  b.classList.add('pressed');setTimeout(function(){b.classList.remove('pressed');},130);
+  snd.key();if(avail().oos)return;
+  var k=b.dataset.key;
+  if((S.step==='print'||S.settled)&&(k==='back'||k==='cancel'))return;
+  if(k==='back'){backAct();}else if(k==='cancel'){reset();log('Vásárlás megszakítva','warn');}else if(k==='help'){S.help=!S.help;}else if(k==='lang'){S.lang=Object.keys(LG)[(Object.keys(LG).indexOf(S.lang)+1)%Object.keys(LG).length];}
+  sync();
+}
+
+$('#pad').addEventListener('click',function(){var av=avail();if(S.step==='card'&&S.phase==='wait'&&av.card){tapCard();}else{snd.key();}});
+$('#pin').addEventListener('click',function(e){if(e.target.tagName==='I'){e.target.classList.add('p');setTimeout(function(){e.target.classList.remove('p');},110);snd.key();}});
+$('#segView').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;S.view=b.dataset.view;snd.key();log(S.view==='inside'?'Szervizajtó nyitva':'Szervizajtó zárva',S.view==='inside'?'warn':'');sync();});
+$('#segMode').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;var o=b.dataset.oos==='1';if(o===S.manualOos)return;S.manualOos=o;if(o){snd.err();if(S.step!=='print'&&!S.settled){TX++;if(S.step==='cash'&&S.paid>0)refund();S.step='home';}}else{snd.ok();}log(o?'Üzemmód: Üzemen kívül (teszt)':'Üzemmód: Normál','warn');sync();});
+$('#sndBtn').addEventListener('click',function(){mute=!mute;this.setAttribute('aria-pressed',String(!mute));this.textContent='Hang: '+(mute?'ki':'be');if(!mute)snd.key();});
+$('#mods').addEventListener('click',function(e){var b=e.target.closest('[data-mod]');if(!b)return;S.mod=b.dataset.mod;snd.key();updMods();renderDetail();});
+
+$('#faults').addEventListener('click',function(e){
+  var b=e.target.closest('[data-fault]');if(!b)return;
+  var k=b.dataset.fault;F[k]=!F[k];
+  var f=FL.filter(function(x){return x[0]===k;})[0];
+  log((F[k]?'Hiba: ':'Hiba megszűnt: ')+f[1]+' ('+f[2].split(' · ')[0]+')',F[k]?'bad':'ok');
+  F[k]?snd.err():snd.ok();
+  if(k==='printer'&&F[k]&&S.step==='print'){
+    TX++;var pk=S.ticket;if(S.pay==='cash')undoCash();
+    S.step='home';S.ticket=null;S.settled=false;S.paid=0;S.change=0;$('#paper').className='paper';
+    log('Nyomtatás megszakadt (E-402): tranzakció visszavonva','bad');toast('Nyomtatási hiba: Fizetés visszavonva');
+  }
+  sync();
+});
+
+$('#ticketBox').addEventListener('click',function(e){
+  if(!e.target.closest('[data-copy]'))return;
+  var tx=ticketText(S.ticket);
+  try{navigator.clipboard.writeText(tx).then(function(){toast('Jegyadatok másolva');},function(){toast('Másolás nem engedélyezett');});}
+  catch(err){toast('Másolás nem engedélyezett');}
+});
+
+$('#scene').addEventListener('pointermove',function(e){
+  var r=this.getBoundingClientRect();
+  this.style.setProperty('--tilt',(((e.clientX-r.left)/r.width-.5)*36).toFixed(1));
+});
+
+/* ---------- Automated Scenarios ---------- */
+function hash(s){var h=2166136261;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return ('00000000'+(h>>>0).toString(16)).slice(-8);}
+var R={running:null,abort:false,all:false,res:[],cur:null,prev:{},sum:{},fp:'',same:null};
+function cnt(p){return S.log.filter(function(e){return e.m.indexOf(p)===0;}).length;}
+function chk(l,ok){R.res.push({l:l,ok:!!ok});renderScn();}
+function flt(k,on){if(F[k]!==on){var b=document.querySelector('[data-fault="'+k+'"]');if(b)b.click();}}
+function W(ms){return new Promise(function(res,rej){setTimeout(function(){R.abort?rej(new Error('Megszakítva')):res();},ms);});}
+function U(fn,ms){return new Promise(function(res,rej){var t0=Date.now();(function p(){if(R.abort)return rej(new Error('Megszakítva'));if(fn())return res(true);if(Date.now()-t0>(ms||6000))return res(false);setTimeout(p,40);})();});}
+function buyTo(){act('go',{s:'route'});act('go',{s:'dep'});act('dep',{i:0});act('go',{s:'cart'});}
+function done(){return S.step==='done';}
+function scReset(sd){
+  S.settled=false;TX++;Object.keys(F).forEach(function(k){F[k]=false;});
+  S.manualOos=false;S.lang='hu';S.step='home';S.phase='wait';S.paid=0;S.change=0;S.pay=null;S.notice='';S.help=false;
+  S.pax={a:1,d:0,c:0};S.from=0;S.to=4;S.dep=0;S.ttype='single';S.cls=2;S.ticket=null;S.taken=false;S.busyCash=false;S.log=[];
+  resetCash();sseed=sd;VNOW=Date.UTC(2026,10,2,8,0,0);$('#paper').className='paper';genDeps();sync();
+}
+
+var SC=[
+  {id:'ok',n:'Sikeres Kártyás Vásárlás',d:'Kártyás fizetés és jegynyomtatás',seed:101,run:async function(){
+    buyTo();chk('Kosár összege pozitív',S.step==='cart'&&total()>0);var exp=total();
+    act('pay',{v:'card'});chk('Kártyaolvasó aktív',S.step==='card'&&S.phase==='wait');
+    tapCard();chk('Feldolgozás elindult',S.phase==='proc');
+    await U(done,9000);
+    chk('Jegy kiadva, az összeg egyezik',done()&&!!S.ticket&&S.ticket.total===exp);
+  }},
+  {id:'cash',n:'Készpénzes Fizetés (BNR)',d:'2 000 Ft befizetése, visszajáró',seed:202,run:async function(){
+    buyTo();var exp=total();act('pay',{v:'cash'});insertBill(2000);
+    await U(function(){return S.paid>=exp;},4000);
+    chk('Bankjegy befogadva',S.paid===2000);
+    chk('Visszajáró kiszámítva',S.change===2000-exp);
+    await U(done,9000);
+    chk('Jegy kiadva sikeresen',done()&&cnt('Demójegy kiadva')===1);
+  }},
+  {id:'net',n:'Hálózati Kimaradás Teszt',d:'Kapcsolatvesztés kártyás fizetéskor',seed:404,run:async function(){
+    buyTo();act('pay',{v:'card'});tapCard();await W(400);
+    flt('network',true);
+    chk('Vissza a kosárhoz figyelmeztetéssel',S.step==='cart'&&!!S.notice);
+  }}
+];
+
+async function runScn(id){
+  var sc=SC.filter(function(x){return x.id===id;})[0];if(!sc||R.running)return;
+  R.running=id;R.abort=false;R.cur=id;R.res=[];R.fp='';R.same=null;var lang=S.lang,wasMute=mute;mute=true;
+  scReset(sc.seed);log('Forgatókönyv indult: '+sc.n,'');renderScn();
+  try{await sc.run();}catch(e){chk(e.message,false);}
+  R.fp=hash(S.log.map(function(e){return e.m;}).reverse().join('|')+'#'+R.res.map(function(r){return r.ok?1:0;}).join(''));
+  var pv=R.prev[id];R.same=pv?pv===R.fp:null;R.prev[id]=R.fp;
+  R.sum[id]={p:R.res.filter(function(r){return r.ok;}).length,t:R.res.length};
+  log('Forgatókönyv vége: '+R.sum[id].p+'/'+R.sum[id].t,R.sum[id].p===R.sum[id].t?'ok':'bad');
+  Object.keys(F).forEach(function(k){F[k]=false;});VNOW=null;S.lang=lang;mute=wasMute;TX++;S.busyCash=false;S.step='home';S.paid=0;S.change=0;S.pay=null;S.notice='';S.phase='wait';
+  S.settled=false;resetCash();$('#paper').className='paper';R.running=null;sync();renderScn();
+}
+
+function renderScn(){
+  var run=R.running,h='<div class="scn">';
+  SC.forEach(function(s){
+    var sm=R.sum[s.id];
+    h+='<div class="scr"><span><b>'+s.n+'</b><small>'+s.d+'</small></span><span class="scq">'+(sm?'<span class="pill'+(sm.p===sm.t?'':' bad')+'">'+sm.p+'/'+sm.t+'</span>':'')+'<button class="sbtn" data-scn="'+s.id+'"'+(run?' disabled':'')+'>'+(run===s.id?'Fut…':'Indítás')+'</button></span></div>';
+  });
+  if(R.cur){
+    h+='<ol class="res">'+R.res.map(function(r){return '<li class="'+(r.ok?'ok':'bad')+'"><i>'+(r.ok?'✓':'✗')+'</i>'+r.l+'</li>';}).join('')+'</ol>';
+    if(!run&&R.fp)h+='<div class="fp">Ujjlenyomat <b>'+R.fp+'</b></div>';
+  }
+  h+='</div>';$('#scn').innerHTML=h;
+}
+
+$('#scn').addEventListener('click',function(e){var b=e.target.closest('[data-scn]');if(!b||b.disabled)return;runScn(b.dataset.scn);});
+
+/* System Initialization */
+var SVG_ICONS={
+  pc: '<rect x="10" y="10" width="28" height="28" rx="4"/><path d="M16 6v4M24 6v4M32 6v4M16 38v4M24 38v4M32 38v4M6 16h4M6 24h4M6 32h4M38 16h4M38 24h4M38 32h4"/>',
+  net: '<path d="M6 20c10-9 26-9 36 0M12 27c7-6 17-6 24 0M18 34c4-3 8-3 12 0"/><circle cx="24" cy="40" r="1.5"/>',
+  printer: '<rect x="10" y="16" width="28" height="16" rx="3"/><path d="M15 16V8h18v8M15 28h18v12H15z"/>',
+  pay: '<rect x="6" y="12" width="36" height="24" rx="3"/><path d="M6 20h36M12 30h8M30 26c2 2 2 4 0 6M35 24c4 3 4 7 0 10"/>',
+  eagle: '<rect x="12" y="6" width="24" height="36" rx="4"/><path d="M20 12h8"/><circle cx="24" cy="27" r="6"/><path d="M24 24v6"/>',
+  bnr: '<rect x="6" y="14" width="36" height="20" rx="3"/><circle cx="24" cy="24" r="5"/><path d="M12 8l-4 4 4 4M36 40l4-4-4-4"/>',
+  billcas: '<rect x="9" y="12" width="30" height="28" rx="3"/><path d="M9 20h30M19 28h10M15 12V7h18v5"/>',
+  hoppers: '<path d="M10 10h28l-5 20H15z"/><path d="M19 30v8h10v-8"/><circle cx="24" cy="18" r="3"/>',
+  payout: '<rect x="10" y="8" width="28" height="18" rx="3"/><path d="M18 26v8h12v-8"/><circle cx="24" cy="40" r="2.5"/><circle cx="31" cy="38" r="2.5"/>'
+};
+var IC=SVG_ICONS;
+
+
+/* Reference-inspired Studio modules */
+LG.de={"demo": "DEMO · keine echte Zahlung", "start": "Fahrkarte kaufen", "tag": "Einfach. Schnell. Mehrsprachig.", "touch": "Zum Starten berühren", "route_h": "Strecke", "from": "Von", "to": "Nach", "swap": "↕ Tauschen", "base": "Demopreis", "next": "Weiter", "back": "Zurück", "dep_h": "Abfahrt wählen", "pl": ". Gleis", "min": "Min.", "fare_h": "Fahrkarte & Reisende", "single": "Einfache Fahrt", "ret": "Hin und zurück", "c2": "2. Klasse", "c1": "1. Klasse", "adult": "Erwachsene", "disc": "Ermäßigt −50 %", "child": "Kind 0–6 Jahre", "free": "kostenlos", "cart_h": "Übersicht", "total": "Gesamt", "pay_card": "Bankkarte / Handy", "pay_cash": "Bargeld", "na": "Nicht verfügbar", "card_h": "Karte auflegen", "card_sub": "Karte oder Handy an das Lesegerät halten.", "card_btn": "Demo-Zahlung", "proc": "Verarbeitung…", "appr": "Genehmigt · Demo", "cash_h": "Bargeld einwerfen", "paid": "Bezahlt", "rem": "Restbetrag", "chg": "Rückgeld", "dbills": "Demo-Banknoten", "print_h": "Fahrkarte wird gedruckt…", "print_sub": "Bitte warten.", "done_h": "Vielen Dank!", "done_sub": "Fahrkarte aus dem Fach entnehmen.", "nw": "Neuer Kauf", "oos": "Außer Betrieb", "oos_sub": "Dieser Automat ist vorübergehend nicht verfügbar.", "help_h": "Hilfe", "help_b": "1. Strecke wählen. 2. Abfahrt wählen. 3. Reisende festlegen. 4. Mit Karte oder Bargeld bezahlen.", "close": "Schließen", "dir_s": "Richtung Szob", "dir_b": "Richtung Budapest", "unavail": "Diese Zahlungsart ist derzeit nicht verfügbar."};
+LG.fr={"demo": "DÉMO · aucun paiement réel", "start": "Acheter un billet", "tag": "Simple. Rapide. Multilingue.", "touch": "Touchez pour commencer", "route_h": "Trajet", "from": "Départ", "to": "Arrivée", "swap": "↕ Inverser", "base": "prix de démonstration", "next": "Suivant", "back": "Retour", "dep_h": "Choisir un départ", "pl": " voie", "min": "min", "fare_h": "Billet et voyageurs", "single": "Aller simple", "ret": "Aller-retour", "c2": "2e classe", "c1": "1re classe", "adult": "Adulte", "disc": "Tarif réduit −50 %", "child": "Enfant 0–6 ans", "free": "gratuit", "cart_h": "Récapitulatif", "total": "Total", "pay_card": "Carte / mobile", "pay_cash": "Espèces", "na": "Indisponible", "card_h": "Présentez votre carte", "card_sub": "Approchez votre carte ou votre téléphone du lecteur.", "card_btn": "Paiement démo", "proc": "Traitement…", "appr": "Accepté · démo", "cash_h": "Insérez des espèces", "paid": "Versé", "rem": "Reste à payer", "chg": "Monnaie", "dbills": "Billets démo", "print_h": "Impression du billet…", "print_sub": "Veuillez patienter.", "done_h": "Merci !", "done_sub": "Retirez votre billet.", "nw": "Nouvel achat", "oos": "Hors service", "oos_sub": "Cet automate est temporairement indisponible.", "help_h": "Aide", "help_b": "1. Choisissez le trajet. 2. Choisissez le départ. 3. Indiquez les voyageurs. 4. Payez par carte ou en espèces.", "close": "Fermer", "dir_s": "vers Szob", "dir_b": "vers Budapest", "unavail": "Ce mode de paiement est indisponible."};
+LG.es={"demo": "DEMO · sin pago real", "start": "Comprar billete", "tag": "Fácil. Rápido. Multilingüe.", "touch": "Toque para empezar", "route_h": "Trayecto", "from": "Origen", "to": "Destino", "swap": "↕ Cambiar", "base": "precio de demostración", "next": "Siguiente", "back": "Atrás", "dep_h": "Elegir salida", "pl": " vía", "min": "min", "fare_h": "Billete y viajeros", "single": "Solo ida", "ret": "Ida y vuelta", "c2": "2.ª clase", "c1": "1.ª clase", "adult": "Adulto", "disc": "Tarifa reducida −50 %", "child": "Niño 0–6 años", "free": "gratis", "cart_h": "Resumen", "total": "Total", "pay_card": "Tarjeta / móvil", "pay_cash": "Efectivo", "na": "No disponible", "card_h": "Acerque su tarjeta", "card_sub": "Acerque la tarjeta o el teléfono al lector.", "card_btn": "Pago de prueba", "proc": "Procesando…", "appr": "Aprobado · demo", "cash_h": "Introduzca efectivo", "paid": "Pagado", "rem": "Pendiente", "chg": "Cambio", "dbills": "Billetes de prueba", "print_h": "Imprimiendo billete…", "print_sub": "Espere, por favor.", "done_h": "¡Gracias!", "done_sub": "Retire su billete.", "nw": "Nueva compra", "oos": "Fuera de servicio", "oos_sub": "Esta máquina no está disponible temporalmente.", "help_h": "Ayuda", "help_b": "1. Elija el trayecto. 2. Elija la salida. 3. Indique los viajeros. 4. Pague con tarjeta o efectivo.", "close": "Cerrar", "dir_s": "hacia Szob", "dir_b": "hacia Budapest", "unavail": "Este método de pago no está disponible."};
+Object.assign(LG.hu,{"feat_fast": "Gyors és egyszerű", "feat_pay": "Kártya · mobil · készpénz", "feat_access": "Kontrasztos nézet", "feat_always": "Szimulált 24/7 üzem", "bill_label": "Demó bankjegyek · BNR", "coin_label": "Demó érmék · Eagle", "unknown": "Ismeretlen", "coin_unavailable": "Érmés visszajáró nem adható.", "fast": "GYORS"});
+Object.assign(LG.en,{"feat_fast": "Fast and easy", "feat_pay": "Card · mobile · cash", "feat_access": "High contrast", "feat_always": "Simulated 24/7 operation", "bill_label": "Demo banknotes · BNR", "coin_label": "Demo coins · Eagle", "unknown": "Unknown", "coin_unavailable": "Coin change is unavailable.", "fast": "FAST"});
+Object.assign(LG.de,{"feat_fast": "Schnell und einfach", "feat_pay": "Karte · Handy · Bargeld", "feat_access": "Hoher Kontrast", "feat_always": "Simulierter 24/7-Betrieb", "bill_label": "Demo-Banknoten · BNR", "coin_label": "Demo-Münzen · Eagle", "unknown": "Unbekannt", "coin_unavailable": "Kein Münzrückgeld verfügbar.", "fast": "SCHNELL"});
+Object.assign(LG.fr,{"feat_fast": "Simple et rapide", "feat_pay": "Carte · mobile · espèces", "feat_access": "Contraste élevé", "feat_always": "Service 24/7 simulé", "bill_label": "Billets démo · BNR", "coin_label": "Pièces démo · Eagle", "unknown": "Inconnue", "coin_unavailable": "Monnaie indisponible.", "fast": "RAPIDE"});
+Object.assign(LG.es,{"feat_fast": "Rápido y sencillo", "feat_pay": "Tarjeta · móvil · efectivo", "feat_access": "Alto contraste", "feat_always": "Servicio 24/7 simulado", "bill_label": "Billetes demo · BNR", "coin_label": "Monedas demo · Eagle", "unknown": "Desconocida", "coin_unavailable": "Cambio en monedas no disponible.", "fast": "RÁPIDO"});
+
+F.psu_drop=false;S.settled=false;V.ram=42;V.rail12=12;
+SER.psu=[];SER.thermal_mgmt=[];
+FL.push(['psu_drop','Tápegység feszültségesés','W-241 · következő nyomtatás fél sebességgel']);
+IC.psu='<rect x="6" y="10" width="36" height="28" rx="3"/><path d="M20 17l-4 9h8l-3 7 11-12h-9l3-4"/>';
+IC.thermal_mgmt='<circle cx="24" cy="24" r="17"/><circle cx="24" cy="24" r="4"/><path d="M24 20c-12-14-16-1-4 4M28 24c14-12 1-16-4-4M24 28c12 14 16 1 4-4M20 24c-14 12-1 16 4 4"/>';
+var hwSvgBase=getHwSvg;
+getHwSvg=function(id){
+  if(id==='psu')return '<svg class="hw-cutaway-svg" viewBox="0 0 160 38" aria-hidden="true"><rect x="8" y="5" width="144" height="28" rx="3" fill="#1c2932" stroke="#4b6470"/><path d="M18 12h40m-40 5h40m-40 5h40m-40 5h40" stroke="#4a626c"/><rect x="80" y="11" width="35" height="16" fill="#0b1e12" stroke="#426952"/><text x="84" y="23" fill="#9be34a" stroke="none" font-size="10">24 V</text><circle cx="135" cy="19" r="4" fill="#38d6ff"/></svg>';
+  if(id==='thermal_mgmt')return '<svg class="hw-cutaway-svg" viewBox="0 0 160 38" aria-hidden="true"><rect x="10" y="4" width="140" height="30" rx="3" fill="#17222c" stroke="#4b6470"/><g class="fan"><circle cx="40" cy="19" r="12" stroke="#7894a1"/><path d="M40 7v24M28 19h24M32 11l16 16M32 27l16-16" stroke="#38d6ff"/></g><g class="fan"><circle cx="118" cy="19" r="12" stroke="#7894a1"/><path d="M118 7v24M106 19h24M110 11l16 16M110 27l16-16" stroke="#38d6ff"/></g></svg>';
+  return hwSvgBase(id);
+};
+var baseDat=dat;
+dat=function(id){
+  if(id==='psu')return{k:'psu',l:'Szimulált tápsínek & fogyasztás',v:V.volt.toFixed(1)+' V',st:F.psu_drop?'warn':'ok',r:[['24 V tápsín',V.volt.toFixed(2)+' V'],['12 V tápsín',V.rail12.toFixed(1)+' V'],['Teljesítmény',V.watt.toFixed(0)+' W'],['Nyomtatási profil',F.psu_drop?'50 % sebesség':'Normál']]};
+  if(id==='thermal_mgmt')return{k:'thermal_mgmt',l:'Szimulált ventilátorvezérlés',v:V.inner.toFixed(1)+' °C',st:F.thermal?'warn':'ok',r:[['Fordulatszám',Math.round(V.rpm)+' RPM'],['Belső hőmérséklet',V.inner.toFixed(1)+' °C'],['Ventilátorprofil',F.thermal?'Emelt fordulat':'Automatikus'],['CPU hőmérséklet',V.cpu.toFixed(0)+' °C']]};
+  var d=baseDat(id);
+  if(id==='net'){d.l='Szimulált hálózati jelerősség';d.r=[['Kapcsolat',F.network?'Megszakadt':'5G + Ethernet'],['Késleltetés',F.network?'Nincs kapcsolat':V.lat.toFixed(0)+' ms'],['Adatforgalom',V.traffic.toFixed(0)+' kB/s']];}
+  if(id==='pc')d.r[1]=['Memória',V.ram.toFixed(1)+' %'];
+  if(id==='billcas'&&F.cash){d.st='bad';d.v='TELE · TESZTHIBA';d.r.push(['Hibainjektálás','Befogadás tiltva']);}
+  if(id==='hoppers'){d.r.push(['Készlet',sumN(LED.coins)+' / '+(HCAP*COIN.length)+' db']);}
+  return d;
+};
+var HIST={cpu:[],lat:[],volt:[],temp:[]};
+function sampleDashboard(){
+  [['cpu',V.load],['lat',F.network?null:V.lat],['volt',V.volt],['temp',V.inner]].forEach(function(x){var a=HIST[x[0]];a.push(x[1]);if(a.length>60)a.shift();});
+  SER.psu.push(V.volt);SER.thermal_mgmt.push(V.inner);
+  if(SER.psu.length>40)SER.psu.shift();if(SER.thermal_mgmt.length>40)SER.thermal_mgmt.shift();
+}
+function renderVisualHoppers(){
+  var markup=COIN.slice().reverse().map(function(d){
+    var count=LED.coins[d],ratio=clamp(count/HCAP,0,1),n=Math.round(ratio*22),coins='';
+    for(var i=0;i<n;i++)coins+='<span class="stacked-coin" style="bottom:'+(i*4.5)+'px"></span>';
+    return '<div class="hopper-tube'+(count<10?' low':'')+(F.hopjam&&d===50?' jam':'')+'"><div class="tube-glass" role="img" aria-label="'+d+' forint: '+count+' darab, '+Math.round(ratio*100)+' százalék">'+coins+'</div><small>'+d+' Ft</small><b>'+count+' / '+HCAP+'</b></div>';
+  }).join('');
+  var box=$('#visualHoppers');if(box&&box.innerHTML!==markup)box.innerHTML=markup;
+}
+function liveChart(values,min,max,color,label){
+  var segments=[],seg=[],w=280,h=60,n=Math.max(1,values.length-1);
+  values.forEach(function(v,i){if(v===null){if(seg.length)segments.push(seg);seg=[];}else seg.push((i/n*w).toFixed(1)+','+(h-5-clamp((v-min)/(max-min),0,1)*(h-10)).toFixed(1));});
+  if(seg.length)segments.push(seg);
+  return '<svg class="live-chart" viewBox="0 0 280 60" preserveAspectRatio="none" role="img" aria-label="'+label+'"><path d="M0 15H280M0 30H280M0 45H280" stroke="#2c536155" fill="none"/>'+segments.map(function(s){return '<polyline points="'+s.join(' ')+'" stroke="'+color+'" stroke-width="1.7" fill="none"/>';}).join('')+'</svg>';
+}
+function renderDashboard(){
+  if(S.view!=='inside')return;
+  var metrics=[['CPU HŐFOK',V.cpu.toFixed(0)+' °C'],['RAM',V.ram.toFixed(0)+' %'],['TELJESÍTMÉNY',V.watt.toFixed(0)+' W'],['VENTILÁTOR',Math.round(V.rpm)+' RPM']];
+  $('#dashMetrics').innerHTML=metrics.map(function(x){return '<div class="metric"><small>'+x[0]+'</small><b>'+x[1]+'</b></div>';}).join('');
+  $('#dashCpu').innerHTML=V.load.toFixed(0)+' <span>% · 0–100</span>';
+  $('#dashLatency').innerHTML=F.network?'OFFLINE':V.lat.toFixed(0)+' <span>ms · 0–200</span>';
+  $('#dashPower').innerHTML=V.volt.toFixed(1)+' <span>V'+(F.psu_drop?' · FESZÜLTSÉGESÉS':'')+'</span>';
+  $('#dashThermal').innerHTML=V.inner.toFixed(1)+' <span>°C</span>';
+  $('#cpuGraph').innerHTML=liveChart(HIST.cpu,0,100,'#38d6ff','Szimulált CPU-terhelés, utolsó 60 minta');
+  $('#latencyGraph').innerHTML=liveChart(HIST.lat,0,200,'#9be34a','Szimulált késleltetés; a hézag kapcsolatkimaradás');
+  $('#powerGraph').innerHTML=liveChart(HIST.volt,18,26,'#f3b134','Szimulált tápfeszültség, 18–26 V');
+  $('#thermalGraph').innerHTML=liveChart(HIST.temp,20,70,'#38d6ff','Szimulált belső hőmérséklet, 20–70 Celsius');
+  var steps=['home','route','dep','fare','cart','payment','print','done'],labels=['START','ÚTVONAL','INDULÁS','JEGY','KOSÁR','FIZETÉS','NYOMTAT','KÉSZ'],cur=steps.indexOf(S.step==='cash'||S.step==='card'?'payment':S.step);
+  $('#flowGraph').innerHTML=steps.map(function(s,i){var x=14+i*68,c=i===cur?'#38d6ff':i<cur?'#9be34a':'#426070';return (i<7?'<path d="M'+(x+16)+' 26h52" stroke="'+(i<cur?'#9be34a':'#294653')+'"/>':'')+'<circle cx="'+x+'" cy="26" r="'+(i===cur?13:10)+'" fill="#0b1b25" stroke="'+c+'" stroke-width="2"/><text x="'+x+'" y="30" text-anchor="middle" fill="'+c+'" font-size="10">'+(i+1)+'</text><text x="'+x+'" y="55" text-anchor="middle" fill="'+c+'" font-size="8">'+labels[i]+'</text>';}).join('');
+  $('#dashLog').innerHTML=S.log.slice(0,8).map(function(e){return '<li class="'+e.l+'"><span>'+tms(e.t)+'</span><span>'+e.m+'</span></li>';}).join('');
+  var inv=COIN.slice().reverse().map(function(d){return {l:d+' Ft',n:LED.coins[d],cap:HCAP};});
+  inv.push({l:'BNR dobok',n:sumN(DR),cap:DCAP*NOTE.length},{l:'Bankj.kaz.',n:casTotal(),cap:CAPN},{l:'Érmekaz.',n:sumN(CCAS),cap:CCAP});
+  $('#inventoryOszlopok').innerHTML=inv.map(function(x){var p=clamp(x.n/x.cap*100,0,100);return '<div class="inventory-row'+(x.l.indexOf('Ft')>=0&&x.n<10?' low':'')+'"><span>'+x.l+'</span><i role="meter" aria-label="'+x.l+' töltöttség" aria-valuemin="0" aria-valuemax="'+x.cap+'" aria-valuenow="'+x.n+'"><span style="width:'+p.toFixed(1)+'%"></span></i><b>'+x.n+'/'+x.cap+'</b></div>';}).join('');
+}
+function languagePicker(){return '<div class="lang-picker" aria-label="Language">'+[['hu','Magyar'],['en','English'],['de','Deutsch'],['fr','Français'],['es','Español']].map(function(x){return '<button data-act="setlang" data-v="'+x[0]+'" aria-pressed="'+(S.lang===x[0])+'">'+x[1]+'</button>';}).join('')+'</div>';}
+$('#segEnvironment').addEventListener('click',function(e){var b=e.target.closest('[data-env]');if(!b)return;document.body.dataset.environment=b.dataset.env;document.querySelectorAll('#segEnvironment button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});snd.key();});
+$('#contrastBtn').addEventListener('click',function(){var on=this.getAttribute('aria-pressed')!=='true';this.setAttribute('aria-pressed',String(on));document.body.dataset.contrast=String(on);});
+
+SC.push({id:'bounded',n:'Korlátozott visszajárókészlet',d:'60 Ft kiadása 3 × 20 Ft-tal, 10 Ft nélkül',seed:505,run:async function(){
+  DR={500:0,1000:0,2000:0};LED.coins={200:0,100:0,50:1,20:3,10:0};
+  var p=plan(60);chk('Visszajáró kiadható',!!p);chk('Pontosan 3 × 20 Ft',!!p&&p.c[20]===3&&!p.c[50]);chk('Készletet a tervezés nem módosítja',LED.coins[20]===3);chk('Nem kiadható összeg elutasítva',plan(10)===null);chk('Nulla visszajáró támogatott',!!plan(0));
+}});
+SC.push({id:'psu',n:'PSU feszültségesés',d:'24 V tápsín és lassított nyomtatás tesztje',seed:606,run:async function(){
+  F.psu_drop=true;tick();sync();chk('Tápsín 21 V alá esik',V.volt<21);chk('PSU modul figyelmeztet',dat('psu').st==='warn');
+  buyTo();act('pay',{v:'card'});tapCard();await U(function(){return S.step==='print';},5000);
+  chk('Lassított nyomtatási profil',document.documentElement.style.getPropertyValue('--print-duration')==='5000ms');await U(done,8000);chk('Demójegy kiadva',done());
+}});
+
+renderScn();
+seed();
+genDeps();
+buildMods();
+log('TICKET+ Studio · referenciaalapú demó indítva','ok');sampleDashboard();
+sync();
+setInterval(tick, 1000);
+if(new URLSearchParams(location.search).has('test'))window.ticketTest={
+ state:function(){return {step:S.step,phase:S.phase,paid:S.paid,change:S.change,settled:S.settled,ticket:S.ticket,faults:Object.assign({},F),coins:Object.assign({},LED.coins),results:R.sum,logs:S.log};},
+ run:runScn,reset:scReset,act:act,tick:tick,plan:plan,
+ stock:function(coins,notes){LED.coins=coins;DR=notes||{};},
+ buy:buyTo,fault:function(k,on){flt(k,on);},
+ language:function(l){act('setlang',{v:l});},
+ view:function(v){S.view=v;sync();}
+};
+
+})();
+</script>
+</body>
+</html>
