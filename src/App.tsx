@@ -9,7 +9,12 @@ import React, {
 import { Toaster, toast } from 'sonner';
 
 import { fetchRemoteSeasonFiles } from './utils/remoteSeasons';
-import { fetchCloudSeasonList, fetchCloudSeasonsConcurrently, fetchCurrentSealedVersion, isCloudTierConfigured } from './utils/supabaseTier';
+import {
+  fetchCloudSeasonList,
+  fetchCloudSeasonsConcurrently,
+  fetchCurrentSealedVersion,
+  isCloudTierConfigured,
+} from './utils/supabaseTier';
 import { checkCloudFreshness, writeCloudMarker } from './utils/cloudFreshness';
 
 import { CloudTierProvider } from './contexts/CloudTierContext';
@@ -27,10 +32,6 @@ import type { ViewKey } from './types/winmix';
 
 /* ==========================================================================
  * Lazy page imports
- * --------------------------------------------------------------------------
- * Pages are loaded only when the corresponding view is opened.
- * This keeps the initial application bundle smaller and avoids loading
- * heavyweight analytics / pipeline dependencies unnecessarily.
  * ========================================================================== */
 
 const DataStudio = lazy(() =>
@@ -59,15 +60,6 @@ const PredictionLedger = lazy(() =>
 
 /* ==========================================================================
  * View validation
- * --------------------------------------------------------------------------
- * `useScreenInit()` receives the initial screen from the URL / preview
- * environment. Never trust that value blindly at runtime.
- *
- * Example:
- *   ?mp_screen=foobar
- *
- * must safely fall back to dashboard rather than leaving the application
- * without a matching render branch.
  * ========================================================================== */
 
 const VALID_VIEWS = new Set<ViewKey>([
@@ -99,16 +91,11 @@ function PageLoadingSpinner() {
       aria-label="Betöltés…"
       className="flex h-64 w-full items-center justify-center text-muted-foreground"
     >
-      <span
-        aria-hidden="true"
-        className="animate-spin text-2xl"
-      >
+      <span aria-hidden="true" className="animate-spin text-2xl">
         ⟳
       </span>
 
-      <span className="sr-only">
-        Az oldal betöltése folyamatban…
-      </span>
+      <span className="sr-only">Az oldal betöltése folyamatban…</span>
     </div>
   );
 }
@@ -117,18 +104,12 @@ function PageLoadingSpinner() {
  * Studio Shell
  * ========================================================================== */
 
+type CloudLoadMode = 'auto' | 'manual';
+
 function StudioShell() {
   const screenInit = useScreenInit();
 
-  /**
-   * Runtime-safe initial view.
-   *
-   * The lazy initializer ensures `toViewKey()` only executes during the
-   * initial state creation rather than on every render.
-   */
-  const [view, setView] = useState<ViewKey>(() =>
-    toViewKey(screenInit?.view)
-  );
+  const [view, setView] = useState<ViewKey>(() => toViewKey(screenInit?.view));
 
   const {
     currentLeague,
@@ -146,103 +127,121 @@ function StudioShell() {
     hasData,
   } = useWinmix();
 
-  /**
-   * Visual loading state.
-   *
-   * State is intentionally retained because the UI needs to re-render while
-   * loading is active.
-   */
   const [loadingMatches, setLoadingMatches] = useState(false);
 
   /**
-   * Synchronous mutex for the remote match loader.
-   *
-   * React state updates are asynchronous. A very fast second click could
-   * otherwise enter handleLoadMatches() before loadingMatches becomes true.
-   *
-   * The ref closes that race because ref.current changes synchronously.
+   * Synchronous mutex shared by the automatic bootstrap, the manual button
+   * and the "new version" toast action. ref.current changes synchronously,
+   * so two fast triggers can never run two downloads at once.
    */
   const loadingMatchesRef = useRef(false);
   const cloudBootstrapAttemptedRef = useRef(false);
   const freshnessCheckedRef = useRef(false);
 
-  /**
-   * A deployed client starts with an empty browser store. When the cloud tier
-   * is configured, hydrate that empty store from the authoritative Supabase
-   * seasons automatically instead of making the operator discover a button.
-   */
-  useEffect(() => {
-    if (!isReady || hasData || cloudBootstrapAttemptedRef.current || !isCloudTierConfigured()) return;
-    cloudBootstrapAttemptedRef.current = true;
+  /* ------------------------------------------------------------------------
+   * Single source of truth for loading data from Supabase.
+   *
+   * - 'auto'   : runs on an empty browser. Silent if the cloud has nothing
+   *              yet; no success toast.
+   * - 'manual' : runs from the button / toast action. Every problem is
+   *              reported, and success is confirmed.
+   *
+   * Files go through the same importFiles() pipeline as everywhere else, so
+   * parsing, league detection and recalculation stay identical.
+   * The cloud marker is written only after a successful import.
+   * ---------------------------------------------------------------------- */
+  const loadFromCloud = useCallback(
+    async (mode: CloudLoadMode) => {
+      if (loadingMatchesRef.current) return;
 
-    void (async () => {
+      loadingMatchesRef.current = true;
+      setLoadingMatches(true);
+
+      const manual = mode === 'manual';
+      const failurePrefix = manual
+        ? 'A felhő-adatok betöltése nem sikerült'
+        : 'A kezdeti felhő-adatbetöltés sikertelen';
+
       let toastId: string | number | undefined;
+
       try {
+        if (!isCloudTierConfigured()) {
+          if (manual) throw new Error('A Supabase-felhő nincs beállítva.');
+          return;
+        }
+
+        if (manual) {
+          toastId = toast.loading('Felhő-mérkőzések betöltése…');
+        }
+
         const version = await fetchCurrentSealedVersion();
-        if (!version) return;
+        if (!version) {
+          if (manual) throw new Error('Nem található aktuális, lezárt adatverzió.');
+          return;
+        }
+
         const seasons = await fetchCloudSeasonList(undefined, version.id);
-        if (seasons.length === 0) return;
-        toastId = toast.loading(`Felhő-adatok letöltése… 0 / ${seasons.length}`);
-        // Bounded concurrency (not one request per season at once); the result
-        // keeps the season order and is all-or-nothing, like the old Promise.all.
+        if (seasons.length === 0) {
+          if (manual) throw new Error('Az aktuális adatverzióhoz nem található szezon.');
+          return;
+        }
+
+        toastId = toast.loading(`Felhő-adatok letöltése… 0 / ${seasons.length}`, {
+          id: toastId,
+        });
+
+        // Bounded concurrency, season order preserved, all-or-nothing.
         const downloads = await fetchCloudSeasonsConcurrently(seasons, {
           onProgress: (done, total) => {
-            toast.loading(`Felhő-adatok letöltése… ${done} / ${total}`, { id: toastId });
-          }
+            toastId = toast.loading(`Felhő-adatok letöltése… ${done} / ${total}`, {
+              id: toastId,
+            });
+          },
         });
+
+        const files = downloads.map(
+          (download) =>
+            new File([download.csvText], download.meta.fileName, {
+              type: 'text/csv',
+            })
+        );
+
+        if (files.length === 0) {
+          throw new Error('Nem töltődött le egyetlen szezonadat sem.');
+        }
+
+        await importFiles(files, 'auto');
+
+        // Remember which server version this browser now holds.
+        writeCloudMarker(version);
+
         toast.dismiss(toastId);
         toastId = undefined;
-        const files = downloads.map((download) => new File(
-          [download.csvText], download.meta.fileName, { type: 'text/csv' }
-        ));
-        await importFiles(files, 'auto');
-        // Remember which server version this browser now holds (see cloudFreshness.ts).
-        writeCloudMarker(version);
+
+        if (manual) {
+          toast.success(`${files.length} szezon betöltve a Supabase-ből.`);
+        }
       } catch (error) {
         if (toastId !== undefined) toast.dismiss(toastId);
-        toast.error(
-          `A kezdeti felhő-adatbetöltés sikertelen: ${error instanceof Error ? error.message : 'ismeretlen hiba'}`
-        );
+        toastId = undefined;
+
+        const message = error instanceof Error ? error.message : 'ismeretlen hiba';
+        toast.error(`${failurePrefix}: ${message}`);
+      } finally {
+        if (toastId !== undefined) toast.dismiss(toastId);
+        loadingMatchesRef.current = false;
+        setLoadingMatches(false);
       }
-    })();
-  }, [hasData, importFiles, isReady]);
+    },
+    [importFiles]
+  );
 
-  /**
-   * Once per session, when the data came from the browser cache (no bootstrap download),
-   * check with ONE small request whether the cloud has a newer version. Notification only:
-   * local data is never replaced automatically, and errors stay silent. Compares server
-   * version identity (id + revision + fingerprint): the local content hash is an FNV-1a
-   * simpleHash and can never equal the server's sha256.
-   */
-  useEffect(() => {
-    if (!isReady || !hasData || freshnessCheckedRef.current || cloudBootstrapAttemptedRef.current) return;
-    freshnessCheckedRef.current = true;
-    void checkCloudFreshness().then((newer) => {
-      if (!newer) return;
-      toast('Új felhő-verzió érhető el.', {
-        description: 'A helyi adataid nem változtak. Frissítéshez nyisd meg a Felhő fület.',
-        duration: 20000,
-        action: { label: 'Megnyitás', onClick: () => setView('operations') },
-      });
-    });
-  }, [hasData, isReady]);
-
-  /**
-   * Remote match loader.
-   *
-   * Flow:
-   *
-   * 1. Acquire synchronous mutex.
-   * 2. Show progress toast.
-   * 3. Download remote season CSVs.
-   * 4. Report partial failures.
-   * 5. Pass files through the exact same import pipeline used elsewhere.
-   * 6. Release mutex in finally, regardless of success/failure.
-   */
-  const handleLoadMatches = useCallback(async () => {
-    if (loadingMatchesRef.current) {
-      return;
-    }
+  /* ------------------------------------------------------------------------
+   * Legacy fallback: only used when the Supabase cloud tier is NOT configured
+   * (e.g. local development without env variables).
+   * ---------------------------------------------------------------------- */
+  const loadFromRemoteFiles = useCallback(async () => {
+    if (loadingMatchesRef.current) return;
 
     loadingMatchesRef.current = true;
     setLoadingMatches(true);
@@ -250,16 +249,11 @@ function StudioShell() {
     const toastId = toast.loading('Mérkőzés-CSV-k letöltése…');
 
     try {
-      const { files, failures } = await fetchRemoteSeasonFiles(
-        (done, total) => {
-          toast.loading(
-            `Mérkőzés-CSV-k letöltése… ${done} / ${total}`,
-            {
-              id: toastId,
-            }
-          );
-        }
-      );
+      const { files, failures } = await fetchRemoteSeasonFiles((done, total) => {
+        toast.loading(`Mérkőzés-CSV-k letöltése… ${done} / ${total}`, {
+          id: toastId,
+        });
+      });
 
       toast.dismiss(toastId);
 
@@ -267,50 +261,85 @@ function StudioShell() {
         toast.error(
           'Egyetlen mérkőzés-CSV sem töltődött le — ellenőrizd a hálózati kapcsolatot.'
         );
-
         return;
       }
 
       if (failures.length > 0) {
         const visibleFailures = failures.slice(0, 3).join(', ');
         const suffix = failures.length > 3 ? ' …' : '';
-
-        toast.warning(
-          `${failures.length} fájl kimaradt: ${visibleFailures}${suffix}`
-        );
+        toast.warning(`${failures.length} fájl kimaradt: ${visibleFailures}${suffix}`);
       }
 
-      /**
-       * Important:
-       *
-       * Remote files deliberately enter the existing import path.
-       * This preserves parsing, league detection and pipeline recalculation
-       * behavior instead of creating a second import implementation.
-       */
       await importFiles(files, 'auto');
     } catch (error) {
       toast.dismiss(toastId);
-
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'ismeretlen hiba';
-
-      toast.error(
-        `A mérkőzések betöltése nem sikerült: ${message}`
-      );
+      const message = error instanceof Error ? error.message : 'ismeretlen hiba';
+      toast.error(`A mérkőzések betöltése nem sikerült: ${message}`);
     } finally {
       loadingMatchesRef.current = false;
       setLoadingMatches(false);
     }
   }, [importFiles]);
 
+  /** The "load matches" button: cloud first, legacy files only as fallback. */
+  const handleLoadMatches = useCallback(async () => {
+    if (isCloudTierConfigured()) {
+      await loadFromCloud('manual');
+    } else {
+      await loadFromRemoteFiles();
+    }
+  }, [loadFromCloud, loadFromRemoteFiles]);
+
+  /**
+   * Automatic bootstrap: a browser with an empty local store hydrates itself
+   * from the authoritative Supabase version — no button, no manual step.
+   * Runs at most once per session.
+   */
+  useEffect(() => {
+    if (
+      !isReady ||
+      hasData ||
+      cloudBootstrapAttemptedRef.current ||
+      !isCloudTierConfigured()
+    ) {
+      return;
+    }
+    cloudBootstrapAttemptedRef.current = true;
+    void loadFromCloud('auto');
+  }, [hasData, isReady, loadFromCloud]);
+
+  /**
+   * Once per session, when the data came from the browser cache, check with
+   * ONE small request whether the cloud has a newer version. Local data is
+   * never replaced automatically; the user decides via the toast action.
+   */
+  useEffect(() => {
+    if (
+      !isReady ||
+      !hasData ||
+      freshnessCheckedRef.current ||
+      cloudBootstrapAttemptedRef.current
+    ) {
+      return;
+    }
+    freshnessCheckedRef.current = true;
+
+    void checkCloudFreshness().then((newer) => {
+      if (!newer) return;
+
+      toast('Új felhő-verzió érhető el.', {
+        description: 'A helyi adataid nem változtak, amíg nem frissíted őket.',
+        duration: 20000,
+        action: {
+          label: 'Frissítés',
+          onClick: () => void loadFromCloud('manual'),
+        },
+      });
+    });
+  }, [hasData, isReady, loadFromCloud]);
+
   return (
     <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-background md:flex-row">
-      {/* ====================================================================
-       * Accessibility: keyboard skip navigation
-       * ==================================================================== */}
-
       <a
         href="#main-content"
         className="
@@ -338,20 +367,12 @@ function StudioShell() {
         Ugrás a fő tartalomhoz
       </a>
 
-      {/* ====================================================================
-       * Navigation
-       * ==================================================================== */}
-
       <NavRail
         view={view}
         onChange={setView}
         onExport={() => void exportJson()}
         onImport={(file) => void beginImport(file)}
       />
-
-      {/* ====================================================================
-       * Application content area
-       * ==================================================================== */}
 
       <div className="order-1 flex min-w-0 flex-1 flex-col overflow-hidden md:order-2">
         <TopBar
@@ -369,10 +390,6 @@ function StudioShell() {
         />
 
         <StatusBar />
-
-        {/* ==================================================================
-         * Main content
-         * ================================================================== */}
 
         <main
           id="main-content"
@@ -399,28 +416,16 @@ function StudioShell() {
           >
             <Suspense fallback={<PageLoadingSpinner />}>
               {view === 'dashboard' && <DataStudio />}
-
-              {view === 'operations' && (
-                <PipelineOperationsDashboard />
-              )}
-
+              {view === 'operations' && <PipelineOperationsDashboard />}
               {view === 'pipeline' && <PipelineAudit />}
-
               {view === 'league' && <LeagueAnalyzer />}
-
               {view === 'h2h' && <HeadToHead />}
-
               {view === 'predictor' && <FixturePredictor />}
-
               {view === 'ledger' && <PredictionLedger />}
             </Suspense>
           </div>
         </main>
       </div>
-
-      {/* ====================================================================
-       * Global screen-reader status announcements
-       * ==================================================================== */}
 
       <div
         role="status"
@@ -434,10 +439,6 @@ function StudioShell() {
             ? 'Mérkőzés-adatok letöltése folyamatban…'
             : ''}
       </div>
-
-      {/* ====================================================================
-       * Import preview modal
-       * ==================================================================== */}
 
       {importPreview ? (
         <ImportPreviewModal
