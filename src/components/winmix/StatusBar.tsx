@@ -2,10 +2,12 @@ import React from 'react';
 import { AlertTriangle, CloudOff } from 'lucide-react';
 import { useCloudTierContext } from '../../contexts/CloudTierContext';
 import { useWinmix } from '../../contexts/WinmixContext';
+import { useWinmixProgress } from '../../hooks/progressStore';
 
 /** Global import/recompute progress plus the storage-backend banner. */
 export function StatusBar() {
-  const { progress, storageBackend } = useWinmix();
+  const { storageBackend } = useWinmix();
+  const progress = useWinmixProgress();
   const cloud = useCloudTierContext();
 
   return (

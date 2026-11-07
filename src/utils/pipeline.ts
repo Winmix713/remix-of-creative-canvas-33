@@ -40,6 +40,7 @@ import {
   PIPELINE_CONTRACT_VERSION,
   YIELD_EVERY_N_MATCHES } from
 './constants';
+import { calibrateWithT } from './stats';
 import { bootstrapSkillCI, skillPairsOf } from './bootstrap';
 import { dcOutcomeProbs, fitRho, type DcSample } from './experiments/dixonColes';
 import { GlickoLedger } from './experiments/glicko2';
@@ -54,10 +55,10 @@ import {
   type ForecastResult,
   type LeagueGoalsPerMatch } from
 './forecastCore';
-import { fitEnsembleWeight, fitMultinomialLogistic } from './logistic';
+import { fitEnsembleWeight, fitMultinomialLogistic, type ClassIndex } from './logistic';
 import { MarketCalibrationAccumulator } from './marketEval';
 import { estimateEntropyFloor } from './oracle';
-import { computeECEForSlice, fitTemperature } from './stats';
+import { computeECEForSlice, computeECEGeneric, fitTemperature } from './stats';
 import { canon, simpleHash } from './teams';
 import type {
   BranchScore,
@@ -206,6 +207,8 @@ interface WalkState {
   ensSamples: EnsembleSampleRecord[];
   markets: MarketCalibrationAccumulator;
   m1AvgLogLoss: number | null;
+  tempAccum: TemperatureAccumulator | null;
+  ensAccum: EnsembleAccumulator | null;
 }
 
 function coldState(): WalkState {
@@ -220,11 +223,17 @@ function coldState(): WalkState {
     calibSample: [],
     ensSamples: [],
     markets: new MarketCalibrationAccumulator(null),
-    m1AvgLogLoss: null
+    m1AvgLogLoss: null,
+    tempAccum: null,
+    ensAccum: null
   };
 }
 
 function stateFromCheckpoint(checkpoint: PipelineCheckpoint): WalkState {
+  const calibSample = checkpoint.calibSample.slice();
+  const ensSamples = checkpoint.ensSamples.slice();
+  const tempAccum = TemperatureAccumulator.fromSamples(calibSample);
+  const ensAccum = EnsembleAccumulator.fromSamples(ensSamples);
   return {
     T: checkpoint.T,
     m1Fit: checkpoint.m1Fit,
@@ -233,10 +242,12 @@ function stateFromCheckpoint(checkpoint: PipelineCheckpoint): WalkState {
     calibHistory: checkpoint.calibHistory.slice(),
     fitHistory: checkpoint.fitHistory.slice(),
     m1Samples: checkpoint.m1Samples.slice(),
-    calibSample: checkpoint.calibSample.slice(),
-    ensSamples: checkpoint.ensSamples.slice(),
+    calibSample,
+    ensSamples,
     markets: new MarketCalibrationAccumulator(checkpoint.marketTallies ?? null),
-    m1AvgLogLoss: checkpoint.m1Fit?.avgLogLoss ?? null
+    m1AvgLogLoss: checkpoint.m1Fit?.avgLogLoss ?? null,
+    tempAccum,
+    ensAccum
   };
 }
 
@@ -281,12 +292,108 @@ experimentsKey: string)
 }
 
 /* -------------------------------------------------------------------------- *
+ * Incremental grid-search accumulators (exact, O(grid_size) per sample)
+ * -------------------------------------------------------------------------- */
+
+const TEMP_GRID: number[] = [];
+for (let t = 0.7; t <= 1.8 + 1e-9; t += 0.05) TEMP_GRID.push(parseFloat(t.toFixed(2)));
+
+const ENS_GRID: number[] = [];
+for (let w = ENSEMBLE_WM1_MIN; w <= ENSEMBLE_WM1_MAX + 1e-9; w += 0.05) ENS_GRID.push(parseFloat(w.toFixed(2)));
+
+class TemperatureAccumulator {
+  private sums: Float64Array;
+  private count = 0;
+
+  constructor() {
+    this.sums = new Float64Array(TEMP_GRID.length);
+  }
+
+  observe(ensRaw: Probs, outcome: Outcome): void {
+    const pIdx = outcome === 'H' ? 'home' : outcome === 'D' ? 'draw' : 'away';
+    for (let g = 0; g < TEMP_GRID.length; g++) {
+      const c = calibrateWithT(ensRaw, TEMP_GRID[g]);
+      this.sums[g] += -Math.log(Math.max(1e-6, c[pIdx]));
+    }
+    this.count++;
+  }
+
+  refit(calibSample: readonly CalibrationSampleRecord[]): { T: number; ece: number; n: number; avgLogLoss: number } | null {
+    if (this.count < CALIB_MIN_SAMPLE) return null;
+    let bestT = 1.0;
+    let minLoss = Infinity;
+    for (let g = 0; g < TEMP_GRID.length; g++) {
+      if (this.sums[g] < minLoss) {
+        minLoss = this.sums[g];
+        bestT = TEMP_GRID[g];
+      }
+    }
+    bestT = parseFloat(bestT.toFixed(2));
+    const n = this.count;
+    const avgLogLoss = minLoss / n;
+    const ece = computeECEGeneric(
+      calibSample as CalibrationSampleRecord[],
+      (s: { ensRaw: Probs; outcome: Outcome }) => calibrateWithT(s.ensRaw, bestT),
+      (s: { ensRaw: Probs; outcome: Outcome }) => s.outcome
+    );
+    return { T: bestT, ece, n, avgLogLoss };
+  }
+
+  static fromSamples(samples: readonly CalibrationSampleRecord[]): TemperatureAccumulator {
+    const acc = new TemperatureAccumulator();
+    for (const s of samples) acc.observe(s.ensRaw, s.outcome);
+    return acc;
+  }
+}
+
+class EnsembleAccumulator {
+  private sums: Float64Array;
+  private count = 0;
+
+  constructor() {
+    this.sums = new Float64Array(ENS_GRID.length);
+  }
+
+  observe(b1: Probs, m1: Probs, y: ClassIndex): void {
+    for (let g = 0; g < ENS_GRID.length; g++) {
+      const w = ENS_GRID[g];
+      const blended = [
+        (1 - w) * b1.home + w * m1.home,
+        (1 - w) * b1.draw + w * m1.draw,
+        (1 - w) * b1.away + w * m1.away
+      ];
+      this.sums[g] += -Math.log(Math.max(1e-6, blended[y]));
+    }
+    this.count++;
+  }
+
+  refit(): { wM1: number; avgLogLoss: number; n: number } | null {
+    if (this.count < ENSEMBLE_MIN_SAMPLE) return null;
+    let best: number = FORECAST_MODEL.ensemble.wM1;
+    let bestLoss = Infinity;
+    for (let g = 0; g < ENS_GRID.length; g++) {
+      if (this.sums[g] < bestLoss) {
+        bestLoss = this.sums[g];
+        best = ENS_GRID[g];
+      }
+    }
+    return { wM1: best, avgLogLoss: bestLoss / this.count, n: this.count };
+  }
+
+  static fromSamples(samples: readonly EnsembleSampleRecord[]): EnsembleAccumulator {
+    const acc = new EnsembleAccumulator();
+    for (const s of samples) acc.observe(s.b1, s.m1, s.y);
+    return acc;
+  }
+}
+
+/* -------------------------------------------------------------------------- *
  * Prequential refits
  * -------------------------------------------------------------------------- */
 
 function refitTemperature(state: WalkState, cursor: number): void {
-  if (state.calibSample.length < CALIB_MIN_SAMPLE) return;
-  const fit = fitTemperature(state.calibSample.map((s) => ({ ensRaw: s.ensRaw, outcome: s.outcome })));
+  if (!state.tempAccum || state.calibSample.length < CALIB_MIN_SAMPLE) return;
+  const fit = state.tempAccum.refit(state.calibSample);
   if (!fit) return;
   state.T = fit.T;
   state.calibHistory.push({
@@ -302,7 +409,8 @@ function refitM1(state: WalkState, cursor: number): void {
   const fit = fitMultinomialLogistic(
     state.m1Samples.map((s) => ({ x: s.x, y: s.y })),
     M1_L2_LAMBDA,
-    M1_MIN_SAMPLE
+    M1_MIN_SAMPLE,
+    state.m1Fit
   );
   if (!fit) return;
   state.m1Fit = fit;
@@ -316,14 +424,8 @@ function refitM1(state: WalkState, cursor: number): void {
 }
 
 function refitEnsemble(state: WalkState, cursor: number): void {
-  if (state.ensSamples.length < ENSEMBLE_MIN_SAMPLE) return;
-  const fit = fitEnsembleWeight(
-    state.ensSamples.map((s) => ({ b1: s.b1, m1: s.m1, y: s.y })),
-    ENSEMBLE_WM1_MIN,
-    ENSEMBLE_WM1_MAX,
-    FORECAST_MODEL.ensemble.wM1,
-    ENSEMBLE_MIN_SAMPLE
-  );
+  if (!state.ensAccum || state.ensSamples.length < ENSEMBLE_MIN_SAMPLE) return;
+  const fit = state.ensAccum.refit();
   if (!fit) return;
   state.ensembleWM1 = fit.wM1;
   state.ensembleTuned = true;
@@ -606,6 +708,9 @@ export async function computeLeaguePipeline(params: PipelineParams): Promise<Pip
   let m1Source: MatchPipeline['m1Source'] = state.m1Fit ? 'fitted' : 'manual';
   let processedSinceRefit = reuseCount;
 
+  if (!state.tempAccum) state.tempAccum = new TemperatureAccumulator();
+  if (!state.ensAccum) state.ensAccum = new EnsembleAccumulator();
+
   for (let i = 0; i < total; i++) {
     const item = flat[i];
     const season = seasons[item.seasonIdx];
@@ -616,6 +721,8 @@ export async function computeLeaguePipeline(params: PipelineParams): Promise<Pip
       historyGoals.home = 0;
       historyGoals.away = 0;
       historyGoals.count = 0;
+      state.tempAccum = new TemperatureAccumulator();
+      state.ensAccum = new EnsembleAccumulator();
       currentSeasonIdx = item.seasonIdx;
     }
 
@@ -644,6 +751,8 @@ export async function computeLeaguePipeline(params: PipelineParams): Promise<Pip
         m1: forecast.m1,
         y: classIndexOf(match.outcome)
       });
+      state.tempAccum?.observe(forecast.ensRaw, match.outcome);
+      state.ensAccum?.observe(forecast.b1, forecast.m1, classIndexOf(match.outcome));
       state.markets.observe(match.pipeline.secondary, {
         home_score: match.home_score,
         away_score: match.away_score

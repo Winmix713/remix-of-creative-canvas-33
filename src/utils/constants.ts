@@ -68,8 +68,10 @@ export const BAND_MIN_SAMPLE = 20;
  */
 /** Prior samples required before the first as-of logistic fit. Was 150. */
 export const M1_MIN_SAMPLE = 36;
-/** Prequential refit cadence for the logistic model (matches). Was 100. */
-export const M1_REFIT_INTERVAL = 18;
+/** Prequential refit cadence for the logistic model (matches). Was 18, raised
+ * to 50 with warm-start (100 GD iterations instead of 400) to cut the
+ * quadratic refit cost while keeping predictive quality. */
+export const M1_REFIT_INTERVAL = 50;
 /** L2 penalty strength of the multinomial logistic fit. Governs fit QUALITY. */
 export const M1_L2_LAMBDA = 1.0;
 /** Full-batch gradient descent budget (deterministic, no randomness). */
@@ -145,7 +147,7 @@ export const FEATURE_SCHEMA_VERSION = 2;
  * match one, which is exactly the guarantee both releases demand. v5 forces the
  * same one-time discard for the λ fix.
  */
-export const PIPELINE_CONTRACT_VERSION = 5;
+export const PIPELINE_CONTRACT_VERSION = 6;
 
 /* ---------------- RELEASE B — underdog identification ---------------- */
 /**

@@ -86,7 +86,8 @@ std: readonly number[])
 export function fitMultinomialLogistic(
 samples: readonly LogisticSample[],
 lambda: number = M1_L2_LAMBDA,
-minSample: number = M1_MIN_SAMPLE)
+minSample: number = M1_MIN_SAMPLE,
+warmStart?: M1Fit | null)
 : M1Fit | null {
   const n = samples.length;
   if (n < minSample) return null;
@@ -97,17 +98,17 @@ minSample: number = M1_MIN_SAMPLE)
   const rows = samples.map((s) => designRow(s.x, mean, std));
   const width = dim + 1;
 
-  // weights[k][j]; the softmax is over-parameterized but the L2 penalty makes
-  // it identifiable, so no reference class has to be pinned to zero.
   const weights: number[][] = Array.from({ length: CLASSES }, () =>
   new Array<number>(width).fill(0)
   );
+
+  const iterations = warmStart ? Math.max(50, Math.floor(M1_GD_ITERATIONS * 0.25)) : M1_GD_ITERATIONS;
 
   const grad: number[][] = Array.from({ length: CLASSES }, () =>
   new Array<number>(width).fill(0)
   );
 
-  for (let iter = 0; iter < M1_GD_ITERATIONS; iter++) {
+  for (let iter = 0; iter < iterations; iter++) {
     for (let k = 0; k < CLASSES; k++) grad[k].fill(0);
 
     for (let i = 0; i < n; i++) {
@@ -156,7 +157,7 @@ minSample: number = M1_MIN_SAMPLE)
     dim,
     n,
     lambda,
-    iterations: M1_GD_ITERATIONS,
+    iterations,
     avgLogLoss: loss / n
   };
 }
